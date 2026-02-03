@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Data folder (large files)
+/data/
+
 # C extensions
 *.so
 
