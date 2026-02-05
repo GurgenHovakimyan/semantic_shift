@@ -49,8 +49,9 @@ semantic_shift/
 │   ├── 06_roberta_concept_swap.py  # RoBERTa concept swap
 │   ├── 07_amazon_drift.py          # Amazon stream drift
 │   ├── 08_amazon_concept_swap.py   # Amazon concept swap
-│   ├── 09_sensitivity_analysis.py  # Sample size sensitivity
-│   └── 10_qualitative_analysis.py  # Keyword drift analysis
+│   ├── 09_sensitivity_analysis.py  # Amazon sample size sensitivity
+│   ├── 10_qualitative_analysis.py  # Keyword drift analysis
+│   └── 11_imdb_sensitivity.py      # IMDb sample size sensitivity
 ├── 📂 notebooks/                   # Jupyter notebooks
 ├── 📂 results/                     # Output files
 └── requirements.txt                # Dependencies
@@ -755,9 +756,9 @@ This proves the detector is **Universal** and robust across:
 
 ## 📏 Sensitivity Analysis: Minimum Sample Size for Detection
 
-To determine the minimum sample size ($N$) required to statistically detect drift, we conducted a sensitivity analysis experiment.
+To determine the minimum sample size ($N$) required to statistically detect drift, we conducted sensitivity analysis experiments on both datasets.
 
-### Experiment 10: Sensitivity Analysis (`experiments/09_sensitivity_analysis.py`)
+### Experiment 10: Amazon Sensitivity Analysis (`experiments/09_sensitivity_analysis.py`)
 
 **Goal:** Identify the minimum sample size needed for reliable drift detection using Conditional MMD.
 
@@ -772,19 +773,50 @@ To determine the minimum sample size ($N$) required to statistically detect drif
 python experiments/09_sensitivity_analysis.py
 ```
 
-**Output:** 
-- `results/sensitivity_plot.png`
+**Output:** `results/sensitivity_plot.png`
 
-### Results
+#### Amazon Results
 
-| Sample Size ($N$) | Mean MMD (Drifted) | Std Dev | Mean MMD (Clean) | Std Dev |
-|-------------------|-------------------|---------|------------------|---------|
-| 100 | 0.0310 | 0.0011 | 0.0249 | 0.0012 |
-| 200 | 0.0183 | 0.0019 | 0.0118 | 0.0011 |
-| 500 | 0.0133 | 0.0008 | 0.0057 | 0.0008 |
-| 1000 | 0.0104 | 0.0003 | 0.0025 | 0.0002 |
-| 2000 | 0.0101 | 0.0009 | 0.0024 | 0.0002 |
-| 3000 | 0.0099 | 0.0007 | 0.0024 | 0.0002 |
+| Sample Size ($N$) | Mean MMD (Drifted) | Std Dev | Mean MMD (Clean) | Std Dev | Separation |
+|-------------------|-------------------|---------|------------------|---------|------------|
+| 100 | 0.0310 | 0.0011 | 0.0249 | 0.0012 | 2.65 ✅ |
+| 200 | 0.0183 | 0.0019 | 0.0118 | 0.0011 | 2.16 ✅ |
+| 500 | 0.0133 | 0.0008 | 0.0057 | 0.0008 | 4.77 ✅ |
+| 1000 | 0.0104 | 0.0003 | 0.0025 | 0.0002 | 14.33 ✅ |
+| 2000 | 0.0101 | 0.0009 | 0.0024 | 0.0002 | 7.08 ✅ |
+| 3000 | 0.0099 | 0.0007 | 0.0024 | 0.0002 | 8.47 ✅ |
+
+---
+
+### Experiment 11: IMDb Sensitivity Analysis (`experiments/11_imdb_sensitivity.py`)
+
+**Goal:** Validate sensitivity analysis on IMDb dataset and compare with Amazon.
+
+**Setup:**
+- **Dataset:** IMDb Reviews (DistilBERT embeddings, 50,000 samples)
+- **Sample Sizes Tested:** $N$ = [100, 200, 500, 1000, 2000, 3000]
+- **Drifted Stream:** 50% concept swap (maximum drift)
+- **Clean Stream:** 0% concept swap (baseline)
+- **Repeats:** 5 trials per sample size
+
+```bash
+python experiments/11_imdb_sensitivity.py
+```
+
+**Output:** `results/imdb_sensitivity_plot.png`
+
+#### IMDb Results
+
+| Sample Size ($N$) | Mean MMD (Drifted) | Std Dev | Mean MMD (Clean) | Std Dev | Separation |
+|-------------------|-------------------|---------|------------------|---------|------------|
+| 100 | 0.0334 | 0.0041 | 0.0312 | 0.0049 | 0.24 ❌ |
+| 200 | 0.0188 | 0.0008 | 0.0150 | 0.0017 | 1.49 ✅ |
+| 500 | 0.0112 | 0.0007 | 0.0061 | 0.0005 | 4.38 ✅ |
+| 1000 | 0.0087 | 0.0004 | 0.0034 | 0.0002 | 8.71 ✅ |
+| 2000 | 0.0079 | 0.0004 | 0.0024 | 0.0002 | 8.58 ✅ |
+| 3000 | 0.0080 | 0.0003 | 0.0024 | 0.0001 | 12.79 ✅ |
+
+---
 
 ### Detection Reliability Analysis
 
@@ -792,32 +824,30 @@ The **separation metric** measures how distinguishable drifted samples are from 
 
 $$\text{Separation} = \frac{\mu_{\text{drifted}} - \mu_{\text{clean}}}{\sigma_{\text{drifted}} + \sigma_{\text{clean}}}$$
 
-| Sample Size ($N$) | Separation | Status |
-|-------------------|------------|--------|
-| 100 | 2.65 | ✅ DETECTABLE |
-| 200 | 2.16 | ✅ DETECTABLE |
-| 500 | 4.77 | ✅ DETECTABLE |
-| 1000 | 14.33 | ✅ DETECTABLE |
-| 2000 | 7.08 | ✅ DETECTABLE |
-| 3000 | 8.47 | ✅ DETECTABLE |
+#### Cross-Dataset Comparison
+
+| Sample Size ($N$) | Amazon Separation | IMDb Separation | Status |
+|-------------------|-------------------|-----------------|--------|
+| 100 | 2.65 | 0.24 | Amazon ✅ / IMDb ❌ |
+| 200 | 2.16 | 1.49 | Both ✅ |
+| 500 | 4.77 | 4.38 | Both ✅ |
+| 1000 | 14.33 | 8.71 | Both ✅ |
+| 2000 | 7.08 | 8.58 | Both ✅ |
+| 3000 | 8.47 | 12.79 | Both ✅ |
 
 ### Key Findings
 
-1. **All sample sizes are sufficient** for drift detection (separation > 1.0)
-2. **MMD stabilizes around N=1000** (~0.010 for drifted, ~0.002 for clean)
-3. **Optimal separation at N=1000** (14.33× signal-to-noise ratio)
-4. **Smaller samples show higher variance** but remain detectable
-5. **Diminishing returns beyond N=1000** for this dataset
+1. **Minimum reliable sample size:** N=200 (IMDb requires slightly more samples than Amazon)
+2. **N=100 is unreliable for IMDb** due to class imbalance (74% positive, 26% negative)
+3. **MMD stabilizes around N=1000** for both datasets
+4. **Optimal separation:** N=1000 for Amazon (14.33×), N=3000 for IMDb (12.79×)
+5. **Cross-dataset consistency:** Both datasets show similar patterns from N=200 onwards
 
 ### Visualization
 
-![Sensitivity Analysis](results/sensitivity_plot.png)
-
-The plot shows:
-- **Red line (solid):** Drifted stream (50% swap) with error bars
-- **Blue line (dashed):** Clean stream (0% swap) with error bars
-- Clear separation between drifted and clean at all sample sizes
-- Convergence of MMD values as sample size increases
+| Amazon | IMDb |
+|--------|------|
+| ![Amazon Sensitivity](results/sensitivity_plot.png) | ![IMDb Sensitivity](results/imdb_sensitivity_plot.png) |
 
 ### Practical Recommendations
 
@@ -827,7 +857,7 @@ The plot shows:
 | **Production Monitoring** | 1000 | Optimal stability and detection |
 | **High-Confidence Detection** | 2000+ | Minimal variance, robust thresholds |
 
-> **Conclusion:** For production deployment, a sample size of **N=1000** provides the best trade-off between computational cost and detection reliability, achieving a separation ratio of 14.33× between drifted and clean distributions.
+> **Conclusion:** For production deployment, a sample size of **N=1000** provides the best trade-off between computational cost and detection reliability. Note that datasets with class imbalance (like IMDb) may require N≥200 for reliable detection, while balanced datasets (like Amazon) work well even at N=100.
 
 ---
 
@@ -1096,7 +1126,8 @@ python src/plot_results.py
 | `results/amazon_drift_results.csv` | DistilBERT longitudinal MMD scores (Amazon) |
 | `results/amazon_drift_plot.png` | Amazon stream drift visualization |
 | `results/amazon_concept_swap.png` | Amazon concept swap validation |
-| `results/sensitivity_plot.png` | Sample size sensitivity analysis |
+| `results/sensitivity_plot.png` | Amazon sample size sensitivity |
+| `results/imdb_sensitivity_plot.png` | IMDb sample size sensitivity |
 | `results/amazon_drift_terms.csv` | Amazon keyword drift analysis |
 | `results/imdb_drift_terms.csv` | IMDb keyword drift analysis |
 
