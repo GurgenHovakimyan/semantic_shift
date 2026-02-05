@@ -49,7 +49,8 @@ semantic_shift/
 │   ├── 06_roberta_concept_swap.py  # RoBERTa concept swap
 │   ├── 07_amazon_drift.py          # Amazon stream drift
 │   ├── 08_amazon_concept_swap.py   # Amazon concept swap
-│   └── 09_sensitivity_analysis.py  # Sample size sensitivity
+│   ├── 09_sensitivity_analysis.py  # Sample size sensitivity
+│   └── 10_qualitative_analysis.py  # Keyword drift analysis
 ├── 📂 notebooks/                   # Jupyter notebooks
 ├── 📂 results/                     # Output files
 └── requirements.txt                # Dependencies
@@ -830,6 +831,129 @@ The plot shows:
 
 ---
 
+## 📝 Qualitative Analysis: Keywords Driving Semantic Drift
+
+To provide interpretable evidence of semantic drift, we conducted a qualitative analysis identifying the top keywords that characterize the drift between time periods.
+
+### Experiment 11: Qualitative Analysis (`experiments/10_qualitative_analysis.py`)
+
+**Goal:** Identify the top keywords driving semantic drift in both IMDb and Amazon datasets.
+
+**Methodology:**
+- Use `CountVectorizer` with `stop_words='english'` and `min_df=10`
+- Fit on combined corpus (old + new periods)
+- Compute average word frequency for each period: $F_{old}$, $F_{new}$
+- Calculate **Drift Score** = $F_{new} - F_{old}$
+- Extract top 20 **New Concepts** (positive drift) and **Old Concepts** (negative drift)
+
+```bash
+python experiments/10_qualitative_analysis.py
+```
+
+**Output:** 
+- `results/amazon_drift_terms.csv`
+- `results/imdb_drift_terms.csv`
+
+---
+
+### Amazon Electronics Results
+
+**Time Periods Compared:**
+- **OLD:** 2001-2017 (first 3,000 reviews)
+- **NEW:** 2021-2023 (last 3,000 reviews)
+
+#### 📈 NEW Concepts (Rising in 2021-2023)
+
+| Rank | Term | Freq (Old) | Freq (New) | Drift Score |
+|------|------|------------|------------|-------------|
+| 1 | decision | 0.0030 | 0.0310 | +0.0280 |
+| 2 | charging | 0.0380 | 0.0623 | +0.0243 |
+| 3 | recommend | 0.0610 | 0.0827 | +0.0217 |
+| 4 | helps | 0.0067 | 0.0283 | +0.0217 |
+| 5 | thanks | 0.0057 | 0.0270 | +0.0213 |
+| 6 | hope | 0.0140 | 0.0320 | +0.0180 |
+| 7 | cords | 0.0107 | 0.0273 | +0.0167 |
+| 8 | easier | 0.0207 | 0.0367 | +0.0160 |
+| 9 | watch | 0.0293 | 0.0450 | +0.0157 |
+| 10 | app | 0.0300 | 0.0440 | +0.0140 |
+
+#### 📉 OLD Concepts (Declining in 2021-2023)
+
+| Rank | Term | Freq (Old) | Freq (New) | Drift Score |
+|------|------|------------|------------|-------------|
+| 1 | just | 0.2963 | 0.1830 | -0.1133 |
+| 2 | use | 0.3240 | 0.2113 | -0.1127 |
+| 3 | camera | 0.1933 | 0.0937 | -0.0997 |
+| 4 | kindle | 0.1137 | 0.0157 | -0.0980 |
+| 5 | sound | 0.2007 | 0.1047 | -0.0960 |
+| 6 | product | 0.2177 | 0.1240 | -0.0937 |
+| 7 | screen | 0.1430 | 0.0623 | -0.0807 |
+| 8 | drive | 0.1050 | 0.0270 | -0.0780 |
+| 9 | usb | 0.1437 | 0.0723 | -0.0713 |
+| 10 | tablet | 0.1030 | 0.0380 | -0.0650 |
+
+**Interpretation:**
+- **Rising terms** reflect the shift toward charging accessories, app-connected devices, and recommendation language
+- **Declining terms** show the fade of standalone devices (cameras, Kindles, tablets) and older technologies (USB drives)
+
+---
+
+### IMDb Movie Reviews Results
+
+**Time Periods Compared:**
+- **OLD:** January 2005 (first 3,000 reviews)
+- **NEW:** December 2017 - January 2018 (last 3,000 reviews)
+
+#### 📈 NEW Concepts (Rising in 2017-2018)
+
+| Rank | Term | Freq (Old) | Freq (New) | Drift Score |
+|------|------|------------|------------|-------------|
+| 1 | star | 0.0650 | 0.1663 | +0.1013 |
+| 2 | wars | 0.0173 | 0.1160 | +0.0987 |
+| 3 | game | 0.0313 | 0.1177 | +0.0863 |
+| 4 | world | 0.1793 | 0.2573 | +0.0780 |
+| 5 | bright | 0.0063 | 0.0820 | +0.0757 |
+| 6 | reviews | 0.0327 | 0.1027 | +0.0700 |
+| 7 | critics | 0.0493 | 0.1187 | +0.0693 |
+| 8 | jumanji | 0.0007 | 0.0647 | +0.0640 |
+| 9 | netflix | 0.0000 | 0.0587 | +0.0587 |
+| 10 | jedi | 0.0040 | 0.0467 | +0.0427 |
+
+#### 📉 OLD Concepts (Declining in 2017-2018)
+
+| Rank | Term | Freq (Old) | Freq (New) | Drift Score |
+|------|------|------------|------------|-------------|
+| 1 | film | 1.7703 | 1.1823 | -0.5880 |
+| 2 | movie | 2.4417 | 1.9743 | -0.4673 |
+| 3 | seen | 0.3660 | 0.1707 | -0.1953 |
+| 4 | think | 0.3963 | 0.2403 | -0.1560 |
+| 5 | best | 0.4093 | 0.2643 | -0.1450 |
+| 6 | hughes | 0.1240 | 0.0020 | -0.1220 |
+| 7 | funny | 0.2080 | 0.0997 | -0.1083 |
+| 8 | phantom | 0.1070 | 0.0110 | -0.0960 |
+| 9 | films | 0.2627 | 0.1677 | -0.0950 |
+| 10 | love | 0.3560 | 0.2497 | -0.1063 |
+
+**Interpretation:**
+- **Rising terms** capture 2017 blockbusters: *Star Wars: The Last Jedi*, *Jumanji: Welcome to the Jungle*, and the emergence of Netflix
+- **Declining terms** show shift from formal film criticism language ("film", "seen", "think") and references to older eras (John Hughes, Phantom Menace)
+
+---
+
+### Cross-Domain Insights
+
+| Aspect | Amazon Electronics | IMDb Movies |
+|--------|-------------------|-------------|
+| **Time Span** | 16 years (2001-2017 → 2021-2023) | 13 years (2005 → 2017-2018) |
+| **Drift Type** | Technology evolution | Movie release patterns |
+| **Top Rising** | charging, app, recommend | star wars, netflix, jumanji |
+| **Top Declining** | kindle, camera, drive | film, hughes, phantom |
+| **Language Shift** | More casual, recommendation-focused | Less formal criticism |
+
+> **Scientific Significance:** These lexical drift patterns provide **interpretable evidence** that complements our embedding-based (Conditional MMD) detection. The qualitative analysis confirms that the semantic drift detected by MMD corresponds to real, meaningful changes in language use over time.
+
+---
+
 ## 🏆 Summary of Key Findings
 
 ### 1. The Theoretical Proof (The "Concept Swap")
@@ -973,6 +1097,8 @@ python src/plot_results.py
 | `results/amazon_drift_plot.png` | Amazon stream drift visualization |
 | `results/amazon_concept_swap.png` | Amazon concept swap validation |
 | `results/sensitivity_plot.png` | Sample size sensitivity analysis |
+| `results/amazon_drift_terms.csv` | Amazon keyword drift analysis |
+| `results/imdb_drift_terms.csv` | IMDb keyword drift analysis |
 
 ---
 
