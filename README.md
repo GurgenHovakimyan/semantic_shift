@@ -48,7 +48,8 @@ semantic_shift/
 │   ├── 05_imdb_roberta_stream.py   # IMDb stream drift (RoBERTa)
 │   ├── 06_roberta_concept_swap.py  # RoBERTa concept swap
 │   ├── 07_amazon_drift.py          # Amazon stream drift
-│   └── 08_amazon_concept_swap.py   # Amazon concept swap
+│   ├── 08_amazon_concept_swap.py   # Amazon concept swap
+│   └── 09_sensitivity_analysis.py  # Sample size sensitivity
 ├── 📂 notebooks/                   # Jupyter notebooks
 ├── 📂 results/                     # Output files
 └── requirements.txt                # Dependencies
@@ -751,6 +752,84 @@ This proves the detector is **Universal** and robust across:
 
 ---
 
+## 📏 Sensitivity Analysis: Minimum Sample Size for Detection
+
+To determine the minimum sample size ($N$) required to statistically detect drift, we conducted a sensitivity analysis experiment.
+
+### Experiment 10: Sensitivity Analysis (`experiments/09_sensitivity_analysis.py`)
+
+**Goal:** Identify the minimum sample size needed for reliable drift detection using Conditional MMD.
+
+**Setup:**
+- **Dataset:** Amazon Electronics (DistilBERT embeddings)
+- **Sample Sizes Tested:** $N$ = [100, 200, 500, 1000, 2000, 3000]
+- **Drifted Stream:** 50% concept swap (maximum drift)
+- **Clean Stream:** 0% concept swap (baseline)
+- **Repeats:** 5 trials per sample size (for statistical robustness)
+
+```bash
+python experiments/09_sensitivity_analysis.py
+```
+
+**Output:** 
+- `results/sensitivity_plot.png`
+
+### Results
+
+| Sample Size ($N$) | Mean MMD (Drifted) | Std Dev | Mean MMD (Clean) | Std Dev |
+|-------------------|-------------------|---------|------------------|---------|
+| 100 | 0.0310 | 0.0011 | 0.0249 | 0.0012 |
+| 200 | 0.0183 | 0.0019 | 0.0118 | 0.0011 |
+| 500 | 0.0133 | 0.0008 | 0.0057 | 0.0008 |
+| 1000 | 0.0104 | 0.0003 | 0.0025 | 0.0002 |
+| 2000 | 0.0101 | 0.0009 | 0.0024 | 0.0002 |
+| 3000 | 0.0099 | 0.0007 | 0.0024 | 0.0002 |
+
+### Detection Reliability Analysis
+
+The **separation metric** measures how distinguishable drifted samples are from clean samples:
+
+$$\text{Separation} = \frac{\mu_{\text{drifted}} - \mu_{\text{clean}}}{\sigma_{\text{drifted}} + \sigma_{\text{clean}}}$$
+
+| Sample Size ($N$) | Separation | Status |
+|-------------------|------------|--------|
+| 100 | 2.65 | ✅ DETECTABLE |
+| 200 | 2.16 | ✅ DETECTABLE |
+| 500 | 4.77 | ✅ DETECTABLE |
+| 1000 | 14.33 | ✅ DETECTABLE |
+| 2000 | 7.08 | ✅ DETECTABLE |
+| 3000 | 8.47 | ✅ DETECTABLE |
+
+### Key Findings
+
+1. **All sample sizes are sufficient** for drift detection (separation > 1.0)
+2. **MMD stabilizes around N=1000** (~0.010 for drifted, ~0.002 for clean)
+3. **Optimal separation at N=1000** (14.33× signal-to-noise ratio)
+4. **Smaller samples show higher variance** but remain detectable
+5. **Diminishing returns beyond N=1000** for this dataset
+
+### Visualization
+
+![Sensitivity Analysis](results/sensitivity_plot.png)
+
+The plot shows:
+- **Red line (solid):** Drifted stream (50% swap) with error bars
+- **Blue line (dashed):** Clean stream (0% swap) with error bars
+- Clear separation between drifted and clean at all sample sizes
+- Convergence of MMD values as sample size increases
+
+### Practical Recommendations
+
+| Scenario | Recommended $N$ | Rationale |
+|----------|-----------------|-----------|
+| **Quick Prototyping** | 200-500 | Fast computation, acceptable variance |
+| **Production Monitoring** | 1000 | Optimal stability and detection |
+| **High-Confidence Detection** | 2000+ | Minimal variance, robust thresholds |
+
+> **Conclusion:** For production deployment, a sample size of **N=1000** provides the best trade-off between computational cost and detection reliability, achieving a separation ratio of 14.33× between drifted and clean distributions.
+
+---
+
 ## 🏆 Summary of Key Findings
 
 ### 1. The Theoretical Proof (The "Concept Swap")
@@ -893,6 +972,7 @@ python src/plot_results.py
 | `results/amazon_drift_results.csv` | DistilBERT longitudinal MMD scores (Amazon) |
 | `results/amazon_drift_plot.png` | Amazon stream drift visualization |
 | `results/amazon_concept_swap.png` | Amazon concept swap validation |
+| `results/sensitivity_plot.png` | Sample size sensitivity analysis |
 
 ---
 
