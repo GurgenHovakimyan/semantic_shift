@@ -64,7 +64,7 @@ semantic_shift/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/semantic_shift.git
+git clone https://github.com/GurgenHovakimyan/semantic_shift.git
 cd semantic_shift
 
 # Install dependencies
