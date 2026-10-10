@@ -13,7 +13,60 @@
 
 ---
 
-## 📁 Project Structure
+## Calibrated monitoring protocol (v2): realistic drift and label-aware baselines
+
+The current protocol is implemented by **experiments 16–24** and the library modules `src/datasets.py`,
+`src/statistics.py`, `src/protocol.py` and `src/scenarios.py` (16–21 produce the results, 22–24 the
+figures and LaTeX tables). Experiments 01–15 are kept for reference but are superseded. Key changes:
+
+| Aspect | What changed |
+|---|---|
+| What C-MMD tests | C-MMD is a test of **class-conditional shift** `P(E\|Y)`. By Bayes' rule, rejecting it is *necessary* for posterior drift under a stable prior, *equivalent* to it under a stable marginal, and it is *blind to pure label shift by design*. A prior-shift test (`prior_shift`) and Global MMD complete the decision logic. |
+| Drift scenarios | Scenarios built only from **real reviews** (`src/scenarios.py`): natural temporal drift (chronologically sorted streams), polarity attenuation, annotation-boundary drift, asymmetric temporal drift, pure label shift (negative control), label noise on a *fresh* sample. |
+| Protocol | `src/protocol.py`: thresholds = empirical quantile of 200 drift-free reference windows; exact within-class permutation p-values; sustained-alarm rule (k consecutive) and Benjamini–Hochberg; FPR, power at matched 5 % FPR, AUROC and detection delay over repeated seeds (exp 16–18). |
+| Baselines | 11 detectors in `src/statistics.py`: Global MMD, energy distance, linear & MLP C2ST, BBSD-KS (unsupervised); C-MMD, class-conditional energy, class-conditional C2ST, centroid shift, joint (E,Y) MMD, error-rate monitor (label-aware). |
+| Kernel bandwidth | The **mean squared pairwise distance** of a fixed reference sample with a 5-scale kernel mixture; ablation vs median / single-scale / adaptive / V-statistic in exp 21. |
+| Consistent kernel wrappers | Earlier scripts were inconsistent: exp 02 used `mmd_rbf` (sum of 5 kernels) while the others used `mmd_rbf_chunked` (mean of 5 kernels), so the IMDb/DistilBERT stream values of exp 02 were inflated 5×. Both wrappers now return the same quantity; exp 21 compares the encoders under the consistent estimator. |
+| Estimator | Kernel detectors use the **unbiased U-statistic** (null expectation 0 for any class count), so changes in class proportions no longer inflate C-MMD. |
+| Data | IMDb stream is now **sorted by date** (the stored file was in corpus order); stream period is 2013-01…2018-01; Amazon reference = first 3,000 reviews (2001–2017) so that calibration/test pools exist. |
+
+### Running the revised pipeline
+
+```bash
+python experiments/16_protocol_calibration.py          # null distributions, thresholds, FPR, permutation type-I
+python experiments/17_realistic_drift_benchmark.py     # power / AUROC of all detectors on all scenarios
+python experiments/18_detection_delay.py               # abrupt & gradual onset, detection delay
+python experiments/19_natural_streams_downstream.py    # chronological streams, p-values, BH, link to F1
+python experiments/20_speed_benchmark_v2.py            # cost per window for every detector
+python experiments/21_bandwidth_encoder_check.py       # bandwidth ablation + DistilBERT/RoBERTa scale check
+python experiments/22_make_figures.py                  # figures -> results/figures/
+python experiments/23_make_tables.py                   # LaTeX tables -> results/tables/
+python experiments/24_fill_manuscript.py <paper.tex>   # paste the tables into a LaTeX file with %%<TAB_*> markers
+```
+
+Outputs: `results/calibration_thresholds.csv`, `results/calibration_fpr.csv`, `results/permutation_type1.csv`,
+`results/benchmark_summary.csv`, `results/delay_summary.csv`, `results/stream_summary.csv`,
+`results/downstream_correlations.csv`, `results/speed_benchmark_v2.csv`, `results/bandwidth_ablation.csv`,
+`results/encoder_scale_check.csv`, plus raw per-window CSVs under `results/null/`, `results/benchmark/`,
+`results/delay/`, `results/stream/`.
+
+### Using the monitor
+
+```python
+from src.datasets import load_dataset
+from src.detector import build_context, CMMDMonitor
+
+ds = load_dataset('imdb', 'distilbert', device='cuda')
+ctx = build_context(ds)                      # fixed reference sample, bandwidth, downstream classifier
+mon = CMMDMonitor(ctx, alpha=0.05, k=2)      # sustained-alarm rule with k=2
+cal_emb, cal_lab, _ = ds.pool('cal')
+tau = mon.calibrate(cal_emb, cal_lab, window_size=200)
+out = mon.score(window_emb, window_lab, n_perm=200)   # {'cmmd', 'tau', 'exceed', 'alarm', 'p_value'}
+```
+
+---
+
+## �📁 Project Structure
 
 ```
 semantic_shift/
@@ -37,8 +90,12 @@ semantic_shift/
 │   ├── extract_roberta.py          # Embedding extraction (RoBERTa)
 │   ├── extract_amazon.py           # Amazon embedding extraction
 │   ├── data_loader_amazon.py       # Amazon data loader
-│   ├── detector.py                 # Drift detection
-│   ├── mmd.py                      # MMD implementation
+│   ├── mmd.py                      # Kernel / MMD estimators (unbiased, 5-scale Gaussian mixture)
+│   ├── datasets.py                 # Unified loading, chronological sorting, fit/cal/test pools   [revision]
+│   ├── statistics.py               # 12 drift detectors (unsupervised + label-aware)             [revision]
+│   ├── protocol.py                 # Calibration, permutation tests, BH, sustained alarms, delay [revision]
+│   ├── scenarios.py                # Realistic drift scenarios from real reviews                 [revision]
+│   ├── detector.py                 # CMMDMonitor entry point                                     [revision]
 │   └── data_loader.py              # Data utilities
 ├── 📂 experiments/                 # Experiment scripts
 │   ├── 01_synthetic_test.py        # Synthetic tests
@@ -55,7 +112,18 @@ semantic_shift/
 │   ├── 12_speed_benchmark.py       # MMD vs C2ST speed comparison
 │   ├── 13_concept_swap_classifier.py # Concept swap + classifier degradation
 │   ├── 14_visualizations.py        # Publication-quality figures
-│   └── 15_enhanced_drift.py        # Enhanced drift with strong baselines
+│   ├── 15_enhanced_drift.py        # Enhanced drift with strong baselines
+│   ├── 16_protocol_calibration.py  # Null calibration, thresholds, FPR, permutation type-I      [revision]
+│   ├── 17_realistic_drift_benchmark.py # Power / AUROC of all detectors on realistic scenarios  [revision]
+│   ├── 18_detection_delay.py       # Abrupt & gradual onset, detection delay                     [revision]
+│   ├── 19_natural_streams_downstream.py # Chronological streams, p-values, BH, link to F1       [revision]
+│   ├── 20_speed_benchmark_v2.py    # Cost per window for every detector                          [revision]
+│   ├── 21_bandwidth_encoder_check.py # Bandwidth ablation + DistilBERT/RoBERTa scale check      [revision]
+│   ├── 22_make_figures.py          # Publication figures (results/figures/)                     [revision]
+│   ├── 23_make_tables.py           # LaTeX tables (results/tables/)                               [revision]
+│   ├── 24_fill_manuscript.py       # Paste the generated tables into a LaTeX file                 [revision]
+│   ├── 25_numbers_for_text.py      # Print the headline numbers of the results CSVs               [revision]
+│   └── common.py                   # Shared configuration                                        [revision]
 ├── 📂 notebooks/                   # Jupyter notebooks
 ├── 📂 results/                     # Output files
 └── requirements.txt                # Dependencies

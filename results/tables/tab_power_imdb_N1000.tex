@@ -1,0 +1,24 @@
+\setlength{\tabcolsep}{2pt}\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{lccccccccccc}
+\toprule
+Detector & \multicolumn{1}{c}{Natural} & \multicolumn{2}{c}{Attenuation} & \multicolumn{2}{c}{Boundary} & \multicolumn{2}{c}{\makecell{Asym.\\temporal}} & \multicolumn{2}{c}{Label noise} & \multicolumn{2}{c}{Label shift} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-12}
+$\lambda$ & -- & 0.5 & 1 & 0.5 & 1 & 0.5 & 1 & 0.2 & 0.5 & 0.5 & 1 \\
+\midrule
+\multicolumn{12}{l}{\textit{Unsupervised}} \\
+Global MMD & \textbf{1.00} & 0.82 & \textbf{1.00} & 0.01 & 0.04 & 0.02 & 0.11 & 0.01 & 0.04 & 0.11 & 1.00 \\
+Energy distance & \textbf{1.00} & 0.75 & \textbf{1.00} & 0.01 & 0.03 & 0.02 & 0.14 & 0.00 & 0.02 & 0.10 & 0.98 \\
+C2ST (linear) & 0.68 & 0.05 & 0.44 & 0.01 & 0.05 & 0.01 & 0.01 & 0.03 & 0.02 & 0.04 & 0.02 \\
+C2ST (MLP) & 0.92 & 0.03 & 0.36 & 0.04 & 0.04 & 0.11 & 0.11 & 0.03 & 0.02 & 0.10 & 0.25 \\
+BBSD-KS & 0.71 & \textbf{0.98} & \textbf{1.00} & 0.07 & 0.07 & 0.05 & 0.08 & 0.08 & 0.08 & 0.95 & 1.00 \\
+\multicolumn{12}{l}{\textit{Label-aware}} \\
+\textbf{C-MMD (ours)} & \textbf{1.00} & \textbf{0.98} & \textbf{1.00} & 0.31 & 0.95 & \textbf{0.47} & \textbf{1.00} & \textbf{1.00} & \textbf{1.00} & 0.08 & 0.24 \\
+Cond. energy & \textbf{1.00} & 0.92 & \textbf{1.00} & 0.09 & 0.81 & 0.37 & \textbf{1.00} & \textbf{1.00} & \textbf{1.00} & 0.66 & 1.00 \\
+Cond. C2ST & 0.92 & 0.13 & 0.91 & 0.04 & 0.03 & 0.02 & 0.21 & 0.13 & \textbf{1.00} & 0.03 & 0.07 \\
+Centroid shift & \textbf{1.00} & 0.81 & \textbf{1.00} & 0.09 & 0.83 & 0.32 & 0.99 & \textbf{1.00} & \textbf{1.00} & 0.20 & 1.00 \\
+Joint MMD (E,Y) & 0.96 & 0.02 & \textbf{1.00} & \textbf{0.62} & \textbf{1.00} & 0.01 & 0.03 & \textbf{1.00} & \textbf{1.00} & 1.00 & 1.00 \\
+Error-rate monitor & 0.09 & 1.00 & 1.00 & 1.00 & 1.00 & 0.08 & 0.03 & 1.00 & 1.00 & 0.00 & 0.00 \\
+\midrule
+Downstream macro-F1 & 0.832 & 0.760 & 0.700 & 0.776 & 0.729 & 0.828 & 0.831 & 0.669 & 0.463 & 0.806 & 0.705 \\
+\bottomrule
+\end{tabular}

@@ -6,6 +6,22 @@ __pycache__/
 # Data folder (large files)
 /data/
 
+# Local launcher with a machine-specific interpreter path, editor backups
+run_gpu.cmd
+*.bak
+
+# Manuscript, response letter and LaTeX build products must never enter the repository
+sn-article*
+sn-jnl.cls
+sn-*.bst
+Response_to_Reviewers*
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+*.zip
+
 # C extensions
 *.so
 
