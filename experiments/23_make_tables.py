@@ -43,7 +43,7 @@ VARIANT_NAME = {
     'mean_single_fixed_U': 'mean / 1 scale / fixed / U',
     'median_single_fixed_U': 'median / 1 scale / fixed / U',
     'mean_multi_adaptive_U': 'mean / 5 scales / per-window / U',
-    'mean_multi_fixed_V': 'mean / 5 scales / fixed / V (submitted version)',
+    'mean_multi_fixed_V': 'mean / 5 scales / fixed / V (biased)',
 }
 SC_SHORT = {'natural': 'Natural', 'attenuation': 'Attenuation', 'boundary': 'Boundary',
             'asym_temporal': 'Asym.\\ temporal', 'label_noise': 'Label noise', 'label_shift': 'Label shift'}
