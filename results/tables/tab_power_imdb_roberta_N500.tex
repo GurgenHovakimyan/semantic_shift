@@ -1,0 +1,24 @@
+\setlength{\tabcolsep}{2pt}\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{lccccccccccc}
+\toprule
+Detector & \multicolumn{1}{c}{Natural} & \multicolumn{2}{c}{Attenuation} & \multicolumn{2}{c}{Boundary} & \multicolumn{2}{c}{\makecell{Asym.\\temporal}} & \multicolumn{2}{c}{Label noise} & \multicolumn{2}{c}{Label shift} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-12}
+$\lambda$ & -- & 0.5 & 1 & 0.5 & 1 & 0.5 & 1 & 0.2 & 0.5 & 0.5 & 1 \\
+\midrule
+\multicolumn{12}{l}{\textit{Unsupervised}} \\
+Global MMD & \textbf{0.99} & 0.20 & \textbf{1.00} & 0.01 & 0.01 & 0.02 & 0.03 & 0.05 & 0.00 & 0.02 & 0.27 \\
+Energy distance & \textbf{0.99} & 0.10 & \textbf{1.00} & 0.00 & 0.01 & 0.03 & 0.04 & 0.03 & 0.00 & 0.01 & 0.13 \\
+C2ST (linear) & 0.89 & 0.11 & 0.82 & 0.05 & 0.04 & 0.06 & 0.06 & 0.05 & 0.08 & 0.07 & 0.25 \\
+C2ST (MLP) & 0.69 & 0.03 & 0.63 & 0.01 & 0.01 & 0.03 & 0.02 & 0.02 & 0.04 & 0.02 & 0.06 \\
+BBSD-KS & 0.51 & \textbf{0.99} & \textbf{1.00} & 0.07 & 0.03 & 0.07 & 0.06 & 0.08 & 0.10 & 0.85 & 1.00 \\
+\multicolumn{12}{l}{\textit{Label-aware}} \\
+\textbf{C-MMD (ours)} & 0.98 & 0.43 & \textbf{1.00} & 0.12 & 0.74 & \textbf{0.18} & \textbf{0.64} & 0.96 & \textbf{1.00} & 0.13 & 0.21 \\
+Cond. energy & 0.92 & 0.21 & \textbf{1.00} & 0.04 & 0.20 & 0.12 & 0.51 & 0.49 & \textbf{1.00} & 0.77 & 1.00 \\
+Cond. C2ST & 0.84 & 0.14 & 0.84 & 0.06 & 0.13 & 0.05 & 0.16 & 0.40 & 0.99 & 0.07 & 0.06 \\
+Centroid shift & 0.90 & 0.15 & \textbf{1.00} & 0.02 & 0.20 & 0.08 & 0.26 & 0.45 & \textbf{1.00} & 0.28 & 1.00 \\
+Joint MMD (E,Y) & 0.70 & 0.08 & 0.55 & \textbf{0.56} & \textbf{0.98} & 0.07 & 0.06 & \textbf{1.00} & \textbf{1.00} & 1.00 & 1.00 \\
+Error-rate monitor & 0.10 & 0.99 & 1.00 & 0.97 & 1.00 & 0.12 & 0.04 & 1.00 & 1.00 & 0.00 & 0.00 \\
+\midrule
+Downstream macro-F1 & 0.874 & 0.802 & 0.739 & 0.818 & 0.758 & 0.871 & 0.875 & 0.691 & 0.465 & 0.852 & 0.757 \\
+\bottomrule
+\end{tabular}

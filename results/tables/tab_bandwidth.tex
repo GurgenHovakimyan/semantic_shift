@@ -1,0 +1,14 @@
+\setlength{\tabcolsep}{2pt}\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{>{\raggedright\arraybackslash}p{108pt}|ccccc|ccccc}
+\toprule
+ & \multicolumn{5}{c|}{$N=200$} & \multicolumn{5}{c}{$N=500$} \\
+Variant & noise & atten. & asym. & bound. & shift & noise & atten. & asym. & bound. & shift \\
+\midrule
+mean / 5 scales / fixed / U (default) & 0.95 & 1.00 & 0.42 & 0.18 & 0.17 & 1.00 & 1.00 & 0.93 & 0.71 & 0.27 \\
+median / 5 scales / fixed / U & 0.95 & 1.00 & 0.42 & 0.17 & 0.16 & 1.00 & 1.00 & 0.93 & 0.70 & 0.27 \\
+mean / 1 scale / fixed / U & 0.96 & 1.00 & 0.46 & 0.20 & 0.17 & 1.00 & 1.00 & 0.93 & 0.69 & 0.25 \\
+median / 1 scale / fixed / U & 0.96 & 1.00 & 0.45 & 0.20 & 0.17 & 1.00 & 1.00 & 0.93 & 0.69 & 0.25 \\
+mean / 5 scales / per-window / U & 0.95 & 1.00 & 0.42 & 0.17 & 0.17 & 1.00 & 1.00 & 0.93 & 0.70 & 0.27 \\
+mean / 5 scales / fixed / V (submitted version) & 0.43 & 0.96 & 0.33 & 0.01 & 0.57 & 1.00 & 1.00 & 0.87 & 0.27 & 1.00 \\
+\bottomrule
+\end{tabular}

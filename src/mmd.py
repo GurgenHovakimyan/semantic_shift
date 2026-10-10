@@ -1,60 +1,167 @@
+"""
+Kernel two-sample statistics (MMD) used throughout the project.
+
+Estimator specification (used consistently by every experiment):
+
+* Kernel: mixture of Gaussian RBF kernels
+
+      k(x, y) = (1/L) * sum_{l=0}^{L-1} exp(-||x - y||^2 / beta_l),
+      beta_l  = beta * mul^(l - L//2),      L = 5, mul = 2
+
+  i.e. bandwidths {beta/4, beta/2, beta, 2*beta, 4*beta}.
+* Base bandwidth `beta`: MEAN squared pairwise Euclidean distance (diagonal
+  excluded) of the pooled sample ("mean heuristic").  The median heuristic is
+  available via ``median_sq_dist_bandwidth`` for the ablation in experiment 21.
+* MMD^2 estimator: biased V-statistic (all pairs, including the diagonal),
+
+      MMD_V^2 = mean(K_XX) + mean(K_YY) - 2 * mean(K_XY),
+
+  which is non-negative and has a strictly positive finite-sample expectation
+  under H0 (this is why 0% label swap yields ~0.005 rather than 0).
+  The unbiased U-statistic is available through ``unbiased=True``.
+
+Historical note: an earlier version of ``mmd_rbf`` returned the SUM over the
+five kernels while ``mmd_rbf_chunked`` returned their MEAN, which inflated the
+IMDb/DistilBERT stream values of experiment 02 by exactly 5x.  Both wrappers
+now return the same quantity.
+"""
+
+from __future__ import annotations
+
 import torch
 
-def gaussian_kernel(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
-    """
-    Computes the Gaussian Kernel matrix between source and target.
-    
-    Args:
-        source: Tensor of shape (B1, D)
-        target: Tensor of shape (B2, D)
-        kernel_mul: Multiplier for bandwidth variations
-        kernel_num: Number of kernels to sum (multi-scale)
-        fix_sigma: If provided, use fixed bandwidth
-    
-    Returns:
-        kernel_val: The kernel matrix sum
-    """
-    n_samples = int(source.size()[0]) + int(target.size()[0])
-    total = torch.cat([source, target], dim=0)
-    
-    # Compute L2 distance matrix (squared)
-    # (x-y)^2 = x^2 + y^2 - 2xy
-    total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-    total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-    L2_distance = ((total0-total1)**2).sum(2) 
-    
-    # Bandwidth heuristic (Median of distances)
-    if fix_sigma:
-        bandwidth = fix_sigma
-    else:
-        bandwidth = torch.sum(L2_distance.data) / (n_samples**2 - n_samples)
-    
-    # Multi-scale kernels (essential for stability)
-    bandwidth /= kernel_mul ** (kernel_num // 2)
-    bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
-    
-    kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
-    return sum(kernel_val)
+KERNEL_MUL = 2.0
+KERNEL_NUM = 5
 
-def mmd_rbf(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+
+# ---------------------------------------------------------------------------
+# Distances and bandwidths
+# ---------------------------------------------------------------------------
+
+def sq_dists(X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+    """Squared Euclidean distance matrix (N, M), clamped at zero."""
+    x2 = (X * X).sum(dim=1, keepdim=True)
+    y2 = (Y * Y).sum(dim=1, keepdim=True)
+    D2 = x2 + y2.t() - 2.0 * (X @ Y.t())
+    return D2.clamp_min_(0.0)
+
+
+def _subsample(X: torch.Tensor, max_samples: int, generator: torch.Generator | None) -> torch.Tensor:
+    if X.shape[0] <= max_samples:
+        return X
+    idx = torch.randperm(X.shape[0], generator=generator)[:max_samples].to(X.device)
+    return X[idx]
+
+
+def _pool(X, Y, max_samples, generator):
+    if Y is None:
+        return _subsample(X, 2 * max_samples, generator)
+    return torch.cat([_subsample(X, max_samples, generator), _subsample(Y, max_samples, generator)], 0)
+
+
+def mean_sq_dist_bandwidth(
+    X: torch.Tensor,
+    Y: torch.Tensor | None = None,
+    max_samples: int = 1000,
+    generator: torch.Generator | None = None,
+) -> float:
+    """Mean squared pairwise distance of the (pooled) sample, diagonal excluded."""
+    Z = _pool(X, Y, max_samples, generator)
+    n = Z.shape[0]
+    D2 = sq_dists(Z, Z)
+    return float(D2.sum().item() / (n * n - n))
+
+
+def median_sq_dist_bandwidth(
+    X: torch.Tensor,
+    Y: torch.Tensor | None = None,
+    max_samples: int = 1000,
+    generator: torch.Generator | None = None,
+) -> float:
+    """Median squared pairwise distance (off-diagonal) of the pooled sample."""
+    Z = _pool(X, Y, max_samples, generator)
+    n = Z.shape[0]
+    D2 = sq_dists(Z, Z)
+    off = D2[~torch.eye(n, dtype=torch.bool, device=Z.device)]
+    return float(off.median().item())
+
+
+# ---------------------------------------------------------------------------
+# Kernels and MMD
+# ---------------------------------------------------------------------------
+
+def bandwidth_list(beta: float, kernel_mul: float = KERNEL_MUL, kernel_num: int = KERNEL_NUM) -> list[float]:
+    base = beta / (kernel_mul ** (kernel_num // 2))
+    return [base * (kernel_mul ** i) for i in range(kernel_num)]
+
+
+def rbf_mixture_kernel(D2: torch.Tensor, beta: float, kernel_mul: float = KERNEL_MUL, kernel_num: int = KERNEL_NUM) -> torch.Tensor:
+    """Average of Gaussian kernels over the multi-scale bandwidth list."""
+    K = torch.zeros_like(D2)
+    for bw in bandwidth_list(beta, kernel_mul, kernel_num):
+        K += torch.exp(-D2 / bw)
+    return K / kernel_num
+
+
+def mmd2_from_kernel(K: torch.Tensor, n1: int, unbiased: bool = False) -> float:
+    """MMD^2 from a pooled kernel matrix whose first n1 rows/cols are sample X."""
+    KXX = K[:n1, :n1]
+    KYY = K[n1:, n1:]
+    KXY = K[:n1, n1:]
+    n2 = K.shape[0] - n1
+    if unbiased:
+        xx = (KXX.sum() - KXX.diagonal().sum()) / (n1 * (n1 - 1))
+        yy = (KYY.sum() - KYY.diagonal().sum()) / (n2 * (n2 - 1))
+    else:
+        xx = KXX.mean()
+        yy = KYY.mean()
+    return float((xx + yy - 2.0 * KXY.mean()).item())
+
+
+def pooled_kernel(X: torch.Tensor, Y: torch.Tensor, beta: float, kernel_mul: float = KERNEL_MUL, kernel_num: int = KERNEL_NUM) -> torch.Tensor:
+    Z = torch.cat([X, Y], 0)
+    return rbf_mixture_kernel(sq_dists(Z, Z), beta, kernel_mul, kernel_num)
+
+
+def mmd2_rbf(
+    X: torch.Tensor,
+    Y: torch.Tensor,
+    beta: float | None = None,
+    unbiased: bool = False,
+    kernel_mul: float = KERNEL_MUL,
+    kernel_num: int = KERNEL_NUM,
+    generator: torch.Generator | None = None,
+) -> float:
+    """MMD^2 between samples X (N, D) and Y (M, D) with the project kernel.
+
+    If ``beta`` is None the mean heuristic is computed on the pooled sample
+    (window-adaptive bandwidth).  The monitoring protocol instead passes a
+    bandwidth fixed on the reference set so that scores are comparable across
+    windows and against a calibrated threshold.
     """
-    Calculates the Maximum Mean Discrepancy (MMD) between two distributions.
-    
-    Equation: MMD^2(P,Q) = E[k(x,x')] - 2E[k(x,y)] + E[k(y,y')]
-    """
-    batch_size = int(source.size()[0])
-    kernels = gaussian_kernel(source, target,
-                              kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)
-    
-    # Split kernel matrix into blocks: XX, YY, XY, YX
-    XX = kernels[:batch_size, :batch_size]
-    YY = kernels[batch_size:, batch_size:]
-    XY = kernels[:batch_size, batch_size:]
-    YX = kernels[batch_size:, :batch_size]
-    
-    # Unbiased estimate of MMD (Gretton et al.)
-    loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
-    return loss
+    if beta is None:
+        beta = mean_sq_dist_bandwidth(X, Y, generator=generator)
+    K = pooled_kernel(X, Y, beta, kernel_mul, kernel_num)
+    return mmd2_from_kernel(K, X.shape[0], unbiased=unbiased)
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compatible wrappers used by experiments 01-15
+# ---------------------------------------------------------------------------
+
+def gaussian_kernel(source, target, kernel_mul=KERNEL_MUL, kernel_num=KERNEL_NUM, fix_sigma=None):
+    """Pooled multi-scale kernel matrix (mean over kernels) for the old API."""
+    Z = torch.cat([source, target], 0)
+    D2 = sq_dists(Z, Z)
+    n = Z.shape[0]
+    beta = fix_sigma if fix_sigma else float(D2.sum().item() / (n * n - n))
+    return rbf_mixture_kernel(D2, beta, kernel_mul, kernel_num)
+
+
+def mmd_rbf(source, target, kernel_mul=KERNEL_MUL, kernel_num=KERNEL_NUM, fix_sigma=None):
+    """Biased MMD^2 with window-adaptive mean-heuristic bandwidth (returns a tensor)."""
+    K = gaussian_kernel(source, target, kernel_mul, kernel_num, fix_sigma)
+    return torch.tensor(mmd2_from_kernel(K, source.shape[0], unbiased=False))
 
 
 def pairwise_distances_chunked(X, Y, chunk_size=256):
@@ -93,117 +200,12 @@ def pairwise_distances_chunked(X, Y, chunk_size=256):
 
 
 def compute_bandwidth(source, target, chunk_size=256):
-    """
-    Compute bandwidth using chunked distance computation.
-    """
-    n1 = source.shape[0]
-    n2 = target.shape[0]
-    
-    # Sample a subset for bandwidth estimation if too large
-    max_samples = 1000
-    if n1 > max_samples:
-        idx = torch.randperm(n1)[:max_samples]
-        source_sample = source[idx]
-    else:
-        source_sample = source
-        
-    if n2 > max_samples:
-        idx = torch.randperm(n2)[:max_samples]
-        target_sample = target[idx]
-    else:
-        target_sample = target
-    
-    # Compute distances on sample
-    total = torch.cat([source_sample, target_sample], dim=0)
-    n = total.shape[0]
-    
-    dist_sum = 0.0
-    for i in range(0, n, chunk_size):
-        i_end = min(i + chunk_size, n)
-        chunk = total[i:i_end]
-        dists = pairwise_distances_chunked(chunk, total, chunk_size)
-        dist_sum += dists.sum().item()
-    
-    # Average (excluding diagonal)
-    bandwidth = dist_sum / (n * n - n)
-    return bandwidth
+    """Mean-heuristic bandwidth on (at most 1000 + 1000) pooled samples."""
+    return mean_sq_dist_bandwidth(source, target, max_samples=1000)
 
 
-def mmd_rbf_chunked(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None, chunk_size=256):
-    """
-    Memory-efficient MMD computation using chunked kernel evaluation.
-    
-    This version computes the kernel matrix in chunks to avoid memory issues
-    with large datasets.
-    
-    Args:
-        source: Tensor of shape (N1, D) - first distribution samples
-        target: Tensor of shape (N2, D) - second distribution samples
-        kernel_mul: Multiplier for bandwidth variations
-        kernel_num: Number of kernels to sum (multi-scale)
-        fix_sigma: If provided, use fixed bandwidth
-        chunk_size: Size of chunks for memory-efficient computation
-        
-    Returns:
-        MMD^2 value (scalar tensor)
-    """
-    n1 = source.shape[0]
-    n2 = target.shape[0]
-    
-    # Compute bandwidth
-    if fix_sigma:
-        bandwidth = fix_sigma
-    else:
-        bandwidth = compute_bandwidth(source, target, chunk_size)
-    
-    # Multi-scale bandwidths
-    bandwidth /= kernel_mul ** (kernel_num // 2)
-    bandwidth_list = [bandwidth * (kernel_mul ** i) for i in range(kernel_num)]
-    
-    # Compute kernel expectations in chunks
-    # E[k(x,x')]
-    XX_sum = 0.0
-    XX_count = 0
-    for i in range(0, n1, chunk_size):
-        i_end = min(i + chunk_size, n1)
-        for j in range(0, n1, chunk_size):
-            j_end = min(j + chunk_size, n1)
-            
-            dists = pairwise_distances_chunked(source[i:i_end], source[j:j_end], chunk_size)
-            for bw in bandwidth_list:
-                XX_sum += torch.exp(-dists / bw).sum().item()
-            XX_count += (i_end - i) * (j_end - j)
-    XX_mean = XX_sum / (XX_count * kernel_num)
-    
-    # E[k(y,y')]
-    YY_sum = 0.0
-    YY_count = 0
-    for i in range(0, n2, chunk_size):
-        i_end = min(i + chunk_size, n2)
-        for j in range(0, n2, chunk_size):
-            j_end = min(j + chunk_size, n2)
-            
-            dists = pairwise_distances_chunked(target[i:i_end], target[j:j_end], chunk_size)
-            for bw in bandwidth_list:
-                YY_sum += torch.exp(-dists / bw).sum().item()
-            YY_count += (i_end - i) * (j_end - j)
-    YY_mean = YY_sum / (YY_count * kernel_num)
-    
-    # E[k(x,y)]
-    XY_sum = 0.0
-    XY_count = 0
-    for i in range(0, n1, chunk_size):
-        i_end = min(i + chunk_size, n1)
-        for j in range(0, n2, chunk_size):
-            j_end = min(j + chunk_size, n2)
-            
-            dists = pairwise_distances_chunked(source[i:i_end], target[j:j_end], chunk_size)
-            for bw in bandwidth_list:
-                XY_sum += torch.exp(-dists / bw).sum().item()
-            XY_count += (i_end - i) * (j_end - j)
-    XY_mean = XY_sum / (XY_count * kernel_num)
-    
-    # MMD^2 = E[k(x,x')] + E[k(y,y')] - 2*E[k(x,y)]
-    mmd_squared = XX_mean + YY_mean - 2 * XY_mean
-    
-    return torch.tensor(mmd_squared)
+def mmd_rbf_chunked(source, target, kernel_mul=KERNEL_MUL, kernel_num=KERNEL_NUM, fix_sigma=None, chunk_size=256):
+    """Same estimator as ``mmd_rbf`` (mean over kernels, V-statistic); kept for
+    backwards compatibility with experiments 03-15."""
+    beta = fix_sigma if fix_sigma else compute_bandwidth(source, target, chunk_size)
+    return torch.tensor(mmd2_rbf(source, target, beta=beta, kernel_mul=kernel_mul, kernel_num=kernel_num))

@@ -1,0 +1,16 @@
+\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.1}%
+\begin{tabular}{>{\raggedright\arraybackslash}p{118pt}ccc|ccc}
+\toprule
+ & \multicolumn{3}{c|}{IMDb} & \multicolumn{3}{c}{Amazon} \\
+Quantity & DistilBERT & RoBERTa & ratio & DistilBERT & RoBERTa & ratio \\
+\midrule
+Bandwidth $\beta$ (mean sq.\ pairwise distance) & 20.251 & 0.969 & 20.89 & 27.075 & 1.362 & 19.88 \\
+Mean cosine similarity of random pairs & 0.928 & 0.997 & 0.93 & 0.908 & 0.996 & 0.91 \\
+C-MMD null s.d.\ ($N{=}200$) & 7.34e-4 & 6.43e-4 & 1.14 & 7.59e-4 & 1.01e-3 & 0.75 \\
+C-MMD $\tau_{0.05}$ ($N{=}200$) & 1.41e-3 & 1.11e-3 & 1.28 & 1.32e-3 & 1.68e-3 & 0.79 \\
+C-MMD at 50\% label noise ($N{=}200$) & 5.75e-3 & 3.94e-3 & 1.46 & 6.87e-3 & 3.25e-3 & 2.11 \\
+Label-noise effect size (null s.d.\ units) & 7.725 & 6.214 & 1.24 & 9.131 & 3.255 & 2.81 \\
+C-MMD, natural stream windows ($N{=}200$) & 6.20e-3 & 4.69e-3 & 1.32 & 7.50e-3 & 6.34e-3 & 1.18 \\
+Global MMD, natural stream windows ($N{=}200$) & 5.89e-3 & 4.45e-3 & 1.33 & 5.99e-3 & 4.95e-3 & 1.21 \\
+\bottomrule
+\end{tabular}
