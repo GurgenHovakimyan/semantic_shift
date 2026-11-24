@@ -3,10 +3,12 @@ import unittest
 import numpy as np
 import torch
 
+from src.mmd import mean_sq_dist_bandwidth
 from src.protocol import (
     ClassCountConditionalCalibrator,
     draw_class_count_window,
     permutation_test_cmmd,
+    pooled_mean_sq_dist,
 )
 
 
@@ -72,6 +74,12 @@ class ConditionalCalibrationTests(unittest.TestCase):
         )
         self.assertTrue(np.isnan(statistic))
         self.assertTrue(np.isnan(p_value))
+
+    def test_pooled_bandwidth_matches_pairwise_mean_squared_distance(self):
+        generator = torch.Generator().manual_seed(4)
+        pooled = 3.0 * torch.randn(257, 16, generator=generator) + 5.0
+        expected = mean_sq_dist_bandwidth(pooled, None, max_samples=pooled.shape[0])
+        self.assertAlmostEqual(pooled_mean_sq_dist(pooled) / expected, 1.0, places=5)
 
 
 if __name__ == '__main__':

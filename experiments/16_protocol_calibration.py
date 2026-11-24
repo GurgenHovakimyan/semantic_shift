@@ -11,15 +11,19 @@ For every (dataset, encoder) pair and window size N:
    fresh windows from the disjoint *test* pool and record how often each
    detector exceeds tau_alpha (per-window FPR) and how often the sustained
    k=2 rule fires.  Mean and standard deviation across runs are reported.
-3. Permutation test type-I error: on the same fresh null windows compute Monte
-   Carlo permutation p-values for Global MMD and C-MMD and report the rejection
-   rate at 5% and a KS test of p-value uniformity.
+3. Permutation test type-I error: on ``N_PERM_WINDOWS`` fresh null windows
+   from the test pool compute Monte Carlo permutation p-values for Global MMD
+   and C-MMD and report the rejection rate at 5% and a KS test of p-value
+   uniformity.
 
 Outputs
     results/null/null_{key}_N{N}.csv        null statistics (one row per window)
     results/calibration_thresholds.csv      tau_alpha for every detector
     results/calibration_fpr.csv             FPR (mean, std over runs)
     results/permutation_type1.csv           permutation-test type-I error
+
+``--permutation-only`` re-runs step 3 alone (it has its own seeds), leaving the
+calibration and FPR outputs untouched.
 """
 
 import sys
@@ -53,15 +57,17 @@ def evaluate_windows(ctx, pool_emb, pool_lab, n, n_windows, rng):
 
 def merge_save(rows, path):
     """Replace rows of the processed keys in an existing CSV (so that configs can be re-run one at a time)."""
+    if not rows:
+        return
     new = pd.DataFrame(rows)
-    if path.exists() and not new.empty:
-        old = pd.read_csv(path)
+    if path.exists():
+        old = pd.read_csv(path, float_precision='round_trip')
         old = old[~old['key'].isin(new['key'].unique())]
         new = pd.concat([old, new], ignore_index=True)
     new.to_csv(path, index=False)
 
 
-def main(selected=None, pool_modes=('default',)):
+def main(selected=None, pool_modes=('default',), permutation_only=False):
     (RESULTS_DIR / 'null').mkdir(exist_ok=True)
     thr_rows, fpr_rows, perm_rows = [], [], []
 
@@ -77,7 +83,7 @@ def main(selected=None, pool_modes=('default',)):
             if mode != 'default' and name == 'imdb':
                 continue
             log('\n' + describe(ds) + f'  [key={key}]')
-            run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows)
+            run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows, permutation_only)
             del ds
             torch.cuda.empty_cache()
             # save after every configuration so that downstream experiments can start early
@@ -88,51 +94,19 @@ def main(selected=None, pool_modes=('default',)):
     log('\nExperiment 16 complete.')
 
 
-def run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows):
+def run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows, permutation_only=False):
     ctx = build_context(ds, seed=CONTEXT_SEED)
     log(f'  bandwidth beta={ctx.beta:.3f}  reference error={ctx.ref_error:.3f}')
     cal_emb, cal_lab, _ = ds.pool('cal')
     test_emb, test_lab, _ = ds.pool('test')
 
     for n in N_GRID[name]:
-        # ---- 1. calibration ------------------------------------------------
-        with Timer(f'{key} N={n} calibration'):
-            rng = np.random.RandomState(1000 + n)
-            null_df = evaluate_windows(ctx, cal_emb, cal_lab, n, N_NULL_CAL, rng)
-            null_df.to_csv(null_path(key, n), index=False)
-        taus = {}
-        for det in ALL_DETECTORS:
-            for alpha in ALPHAS:
-                tau = threshold_from_null(null_df[det].values, alpha)
-                taus[(det, alpha)] = tau
-                thr_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,
-                                 'alpha': alpha, 'tau': tau, 'null_mean': null_df[det].mean(),
-                                 'null_std': null_df[det].std(), 'beta': ctx.beta})
-
-        # ---- 2. false-positive control on fresh windows ---------------------
-        with Timer(f'{key} N={n} FPR ({N_RUNS} runs x {N_NULL_TEST} windows)'):
-            per_run = {det: {a: [] for a in ALPHAS} for det in ALL_DETECTORS}
-            per_run_k2 = {det: [] for det in ALL_DETECTORS}
-            all_test = []
-            for run in range(N_RUNS):
-                rng = np.random.RandomState(5000 + 100 * n + run)
-                test_df = evaluate_windows(ctx, test_emb, test_lab, n, N_NULL_TEST, rng)
-                test_df['run'] = run
-                all_test.append(test_df)
-                for det in ALL_DETECTORS:
-                    for alpha in ALPHAS:
-                        per_run[det][alpha].append(empirical_fpr(test_df[det].values, taus[(det, alpha)]))
-                    exceed = test_df[det].values > taus[(det, 0.05)]
-                    per_run_k2[det].append(float(sustained_alarms(exceed, k=2).mean()))
-            pd.concat(all_test).to_csv(RESULTS_DIR / 'null' / f'nulltest_{key}_N{n}.csv', index=False)
-            for det in ALL_DETECTORS:
-                for alpha in ALPHAS:
-                    v = np.array(per_run[det][alpha])
-                    fpr_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,
-                                     'alpha': alpha, 'fpr_mean': v.mean(), 'fpr_std': v.std(ddof=1),
-                                     'fpr_k2_mean': np.mean(per_run_k2[det]) if alpha == 0.05 else np.nan})
+        if not permutation_only:
+            run_calibration_and_fpr(ctx, key, name, model, n, cal_emb, cal_lab, test_emb, test_lab,
+                                    thr_rows, fpr_rows)
 
         # ---- 3. permutation-test type-I error -------------------------------
+        # Uses its own seed, so it can be refreshed alone with --permutation-only.
         with Timer(f'{key} N={n} permutation type-I ({N_PERM_WINDOWS} windows)'):
             rng = np.random.RandomState(9000 + n)
             p_g, p_c = [], []
@@ -145,13 +119,52 @@ def run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows):
                 perm_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,
                                   'reject_05': float(np.mean(pv <= 0.05)), 'reject_01': float(np.mean(pv <= 0.01)),
                                   'ks_uniform_p': float(kstest(pv, 'uniform').pvalue), 'n_windows': len(pv)})
-        log(f'  N={n}: tau05 cmmd={taus[("cmmd", 0.05)]:.5f} global={taus[("global_mmd", 0.05)]:.5f} | '
-            f'FPR cmmd={np.mean(per_run["cmmd"][0.05]):.3f} global={np.mean(per_run["global_mmd"][0.05]):.3f} | '
-            f'perm reject cmmd={perm_rows[-1]["reject_05"]:.3f} global={perm_rows[-2]["reject_05"]:.3f}')
+        log(f'  N={n}: perm reject cmmd={perm_rows[-1]["reject_05"]:.3f} global={perm_rows[-2]["reject_05"]:.3f}')
     del ctx
+
+
+def run_calibration_and_fpr(ctx, key, name, model, n, cal_emb, cal_lab, test_emb, test_lab, thr_rows, fpr_rows):
+    # ---- 1. calibration ----------------------------------------------------
+    with Timer(f'{key} N={n} calibration'):
+        rng = np.random.RandomState(1000 + n)
+        null_df = evaluate_windows(ctx, cal_emb, cal_lab, n, N_NULL_CAL, rng)
+        null_df.to_csv(null_path(key, n), index=False)
+    taus = {}
+    for det in ALL_DETECTORS:
+        for alpha in ALPHAS:
+            tau = threshold_from_null(null_df[det].values, alpha)
+            taus[(det, alpha)] = tau
+            thr_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,
+                             'alpha': alpha, 'tau': tau, 'null_mean': null_df[det].mean(),
+                             'null_std': null_df[det].std(), 'beta': ctx.beta})
+
+    # ---- 2. false-positive control on fresh windows -------------------------
+    with Timer(f'{key} N={n} FPR ({N_RUNS} runs x {N_NULL_TEST} windows)'):
+        per_run = {det: {a: [] for a in ALPHAS} for det in ALL_DETECTORS}
+        per_run_k2 = {det: [] for det in ALL_DETECTORS}
+        all_test = []
+        for run in range(N_RUNS):
+            rng = np.random.RandomState(5000 + 100 * n + run)
+            test_df = evaluate_windows(ctx, test_emb, test_lab, n, N_NULL_TEST, rng)
+            test_df['run'] = run
+            all_test.append(test_df)
+            for det in ALL_DETECTORS:
+                for alpha in ALPHAS:
+                    per_run[det][alpha].append(empirical_fpr(test_df[det].values, taus[(det, alpha)]))
+                exceed = test_df[det].values > taus[(det, 0.05)]
+                per_run_k2[det].append(float(sustained_alarms(exceed, k=2).mean()))
+        pd.concat(all_test).to_csv(RESULTS_DIR / 'null' / f'nulltest_{key}_N{n}.csv', index=False)
+        for det in ALL_DETECTORS:
+            for alpha in ALPHAS:
+                v = np.array(per_run[det][alpha])
+                fpr_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,
+                                 'alpha': alpha, 'fpr_mean': v.mean(), 'fpr_std': v.std(ddof=1),
+                                 'fpr_k2_mean': np.mean(per_run_k2[det]) if alpha == 0.05 else np.nan})
+    log(f'  N={n}: tau05 cmmd={taus[("cmmd", 0.05)]:.5f} global={taus[("global_mmd", 0.05)]:.5f} | '
+        f'FPR cmmd={np.mean(per_run["cmmd"][0.05]):.3f} global={np.mean(per_run["global_mmd"][0.05]):.3f}')
 
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     modes = ('default', 'separate') if '--both-pools' in sys.argv else ('default',)
-    main(set(args[0].split(',')) if args else None, modes)
+    main(set(args[0].split(',')) if args else None, modes, permutation_only='--permutation-only' in sys.argv)

@@ -20,6 +20,9 @@ Outputs
     results/stream/stream_{key}.csv       per-window statistics and alarms
     results/stream_summary.csv            alarm fractions per detector
     results/downstream_correlations.csv   Spearman rho with CIs
+
+``--permutation-only`` recomputes just the permutation p-values, BH flags and
+the corresponding summary fractions of existing stream files.
 """
 
 import sys
@@ -69,7 +72,34 @@ def merge_save(rows, path):
     new.to_csv(path, index=False)
 
 
-def main(selected=None):
+def refresh_permutation_columns(ds, ctx, key, n):
+    """Recompute only the permutation p-values and BH flags of an existing stream file and its summary rows."""
+    path = RESULTS_DIR / 'stream' / f'stream_{key}.csv'
+    df = pd.read_csv(path, float_precision='round_trip')
+    p_g, p_c = [], []
+    with Timer(f'{key} stream permutation p-values ({len(df)} windows of N={n})'):
+        for w in df['window'].astype(int):
+            sl = slice(w * n, (w + 1) * n)
+            e, l = ds.stream_emb[sl], ds.stream_lab[sl]
+            p_g.append(permutation_test_mmd(ctx.ref_global, e, n_perm=N_PERM, seed=w)[1])
+            p_c.append(permutation_test_cmmd(ctx.ref_by_class, e, l, n_perm=N_PERM, seed=w)[1])
+    df['p_global'], df['p_cmmd'] = p_g, p_c
+    df['bh_global'] = benjamini_hochberg(df['p_global'].values, q=0.05)
+    df['bh_cmmd'] = benjamini_hochberg(df['p_cmmd'].values, q=0.05)
+    df.to_csv(path, index=False)
+
+    summary_path = RESULTS_DIR / 'stream_summary.csv'
+    summary = pd.read_csv(summary_path, float_precision='round_trip')
+    for det, p_col, bh_col in [('global_mmd', 'p_global', 'bh_global'), ('cmmd', 'p_cmmd', 'bh_cmmd')]:
+        sel = (summary['key'] == key) & (summary['detector'] == det)
+        summary.loc[sel, 'frac_bh'] = df[bh_col].mean()
+        summary.loc[sel, 'frac_p05'] = (df[p_col] <= 0.05).mean()
+    summary.to_csv(summary_path, index=False)
+    log(f'  {key}: BH cmmd={df["bh_cmmd"].mean():.4f} global={df["bh_global"].mean():.4f} | '
+        f'p<=0.05 cmmd={(df["p_cmmd"] <= 0.05).mean():.4f} global={(df["p_global"] <= 0.05).mean():.4f}')
+
+
+def main(selected=None, permutation_only=False):
     (RESULTS_DIR / 'stream').mkdir(exist_ok=True)
     summary_rows, corr_rows = [], []
     rng = np.random.RandomState(123)
@@ -81,6 +111,10 @@ def main(selected=None):
         n = STREAM_N[name]
         ds = load_dataset(name, model, DEVICE)
         ctx = build_context(ds, seed=CONTEXT_SEED)
+        if permutation_only:
+            refresh_permutation_columns(ds, ctx, key, n)
+            del ds, ctx
+            continue
         taus = load_thresholds(key, n, alpha=0.05)
         rows = []
         n_windows = ds.stream_emb.shape[0] // n
@@ -150,4 +184,5 @@ def main(selected=None):
 
 
 if __name__ == '__main__':
-    main(set(sys.argv[1].split(',')) if len(sys.argv) > 1 else None)
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    main(set(args[0].split(',')) if args else None, permutation_only='--permutation-only' in sys.argv)

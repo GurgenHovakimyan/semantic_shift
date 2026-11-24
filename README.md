@@ -45,6 +45,10 @@ python experiments/23_make_tables.py                   # LaTeX tables -> results
 python experiments/24_fill_manuscript.py <paper.tex>   # paste the tables into a LaTeX file with %%<TAB_*> markers
 ```
 
+`16_protocol_calibration.py --both-pools --permutation-only` and `19_natural_streams_downstream.py --permutation-only`
+refresh only the permutation outputs (type-I rates, stream p-values and BH flags) with the pooled-bandwidth test,
+without recomputing the other detectors.
+
 Outputs: `results/calibration_thresholds.csv`, `results/calibration_fpr.csv`, `results/permutation_type1.csv`,
 `results/benchmark_summary.csv`, `results/delay_summary.csv`, `results/stream_summary.csv`,
 `results/downstream_correlations.csv`, `results/speed_benchmark_v2.csv`, `results/bandwidth_ablation.csv`,

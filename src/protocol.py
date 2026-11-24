@@ -28,7 +28,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
-from .mmd import mean_sq_dist_bandwidth, pooled_kernel, mmd2_from_kernel
+from .mmd import pooled_kernel, mmd2_from_kernel
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +116,17 @@ def _batched_mmd2(K: torch.Tensor, masks: torch.Tensor) -> torch.Tensor:
     return xx + yy - 2 * xy
 
 
+def pooled_mean_sq_dist(Z: torch.Tensor) -> float:
+    """Mean squared pairwise distance of all rows of ``Z`` (diagonal excluded), in O(n d).
+
+    Uses sum_{i != j} ||z_i - z_j||^2 = 2 n sum_i ||z_i - mean(z)||^2, so it equals
+    ``mmd.mean_sq_dist_bandwidth`` on the full sample without forming the distance matrix.
+    """
+    Zd = Z.double()
+    Zc = Zd - Zd.mean(0, keepdim=True)
+    return float(2.0 * (Zc * Zc).sum().item() / (Z.shape[0] - 1))
+
+
 def permutation_test_mmd(X: torch.Tensor, Y: torch.Tensor, n_perm: int = 200,
                          seed: int = 0) -> tuple[float, float]:
     """Monte Carlo permutation test for global MMD with pooled, invariant bandwidth."""
@@ -124,7 +135,7 @@ def permutation_test_mmd(X: torch.Tensor, Y: torch.Tensor, n_perm: int = 200,
     if X.shape[0] < 2 or Y.shape[0] < 2:
         raise ValueError('both samples must contain at least two observations')
     pooled = torch.cat([X, Y])
-    beta = mean_sq_dist_bandwidth(pooled, None, max_samples=pooled.shape[0])
+    beta = pooled_mean_sq_dist(pooled)
     K = pooled_kernel(X, Y, beta)
     n1, n = X.shape[0], K.shape[0]
     obs = mmd2_from_kernel(K, n1, unbiased=True)
@@ -151,7 +162,7 @@ def permutation_test_cmmd(ref_by_class: dict, win_emb: torch.Tensor, win_lab: to
     if any(int((win_lab == c).sum().item()) < min_count for c in ref_by_class):
         return float('nan'), float('nan')
     pooled = torch.cat([torch.cat([R, win_emb[win_lab == c]]) for c, R in ref_by_class.items()])
-    beta = mean_sq_dist_bandwidth(pooled, None, max_samples=pooled.shape[0])
+    beta = pooled_mean_sq_dist(pooled)
     g = torch.Generator(device='cpu').manual_seed(seed)
     obs_terms, perm_terms = [], []
     for c, R in ref_by_class.items():
