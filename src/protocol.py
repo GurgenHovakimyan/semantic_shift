@@ -143,17 +143,19 @@ def permutation_test_cmmd(ref_by_class: dict, win_emb: torch.Tensor, win_lab: to
 
     The bandwidth is selected once from all pooled class observations before
     group memberships are permuted, so it cannot encode the observed split.
+    Returns ``(nan, nan)`` when any class has fewer than ``min_count`` window
+    observations, rather than testing only the remaining classes.
     """
     if n_perm < 1:
         raise ValueError('n_perm must be positive')
+    if any(int((win_lab == c).sum().item()) < min_count for c in ref_by_class):
+        return float('nan'), float('nan')
     pooled = torch.cat([torch.cat([R, win_emb[win_lab == c]]) for c, R in ref_by_class.items()])
     beta = mean_sq_dist_bandwidth(pooled, None, max_samples=pooled.shape[0])
     g = torch.Generator(device='cpu').manual_seed(seed)
     obs_terms, perm_terms = [], []
     for c, R in ref_by_class.items():
         W = win_emb[win_lab == c]
-        if W.shape[0] < min_count:
-            continue
         K = pooled_kernel(R, W, beta)
         n1, n = R.shape[0], K.shape[0]
         obs_terms.append(mmd2_from_kernel(K, n1, unbiased=True))

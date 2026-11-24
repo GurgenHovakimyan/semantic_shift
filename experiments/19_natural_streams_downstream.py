@@ -5,10 +5,11 @@ performance.
 Part A (natural streams).  The chronologically sorted deployment stream of
 each (dataset, encoder) pair is cut into non-overlapping windows (IMDb N=500,
 Amazon N=250).  For every window we compute all detectors, the macro-F1 of
-the reference-trained classifier, exact permutation p-values for Global MMD
-and C-MMD, and the per-class C-MMD terms.  Alarms are declared with the
+the reference-trained classifier, Monte Carlo permutation p-values for Global
+MMD and C-MMD, and the per-class C-MMD terms.  Alarms are declared with the
 calibrated threshold tau_0.05 (single window and sustained k=2 rule) and,
-offline, with Benjamini-Hochberg FDR control over the permutation p-values.
+offline, with exploratory Benjamini-Hochberg adjustment of the permutation
+p-values (formal FDR control is not claimed for dependent stream windows).
 
 Part B (downstream link).  Spearman rank correlations (with bootstrap 95% CIs)
 between each drift statistic and the window-level macro-F1 are reported

@@ -63,6 +63,16 @@ class ConditionalCalibrationTests(unittest.TestCase):
         self.assertGreaterEqual(p_value, 1 / 20)
         self.assertLessEqual(p_value, 1.0)
 
+    def test_permutation_test_is_unavailable_below_class_minimum(self):
+        refs = {0: self.embeddings[:15], 1: self.embeddings[30:45]}
+        window = torch.cat([self.embeddings[15:24], self.embeddings[45:57]])
+        labels = torch.tensor([0] * 9 + [1] * 12)
+        statistic, p_value = permutation_test_cmmd(
+            refs, window, labels, n_perm=19, seed=3
+        )
+        self.assertTrue(np.isnan(statistic))
+        self.assertTrue(np.isnan(p_value))
+
 
 if __name__ == '__main__':
     unittest.main()

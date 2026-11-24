@@ -6,7 +6,8 @@ all detectors of ``src/statistics.py`` (reference sample fixed at M=1000
 embeddings, 500 per class, as in the monitoring protocol).  Kernel and
 energy statistics are timed on a single CPU thread *and* on the GPU; the
 classifier-based statistics (C2ST, BBSD, error-rate) run in scikit-learn on
-the CPU.  The exact permutation test (200 permutations) is timed separately.
+the CPU.  The Monte Carlo permutation test (200 random assignments) is timed
+separately.
 For perspective, the time needed to *produce* the embeddings of one window
 with DistilBERT is measured as well when the model is available locally.
 

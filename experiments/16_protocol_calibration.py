@@ -11,8 +11,8 @@ For every (dataset, encoder) pair and window size N:
    fresh windows from the disjoint *test* pool and record how often each
    detector exceeds tau_alpha (per-window FPR) and how often the sustained
    k=2 rule fires.  Mean and standard deviation across runs are reported.
-3. Permutation test type-I error: on the same fresh null windows compute exact
-   permutation p-values for Global MMD and C-MMD and report the rejection
+3. Permutation test type-I error: on the same fresh null windows compute Monte
+   Carlo permutation p-values for Global MMD and C-MMD and report the rejection
    rate at 5% and a KS test of p-value uniformity.
 
 Outputs
