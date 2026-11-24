@@ -21,7 +21,7 @@ figures and LaTeX tables). Experiments 01–15 are kept for reference but are su
 
 | Aspect | What changed |
 |---|---|
-| What C-MMD tests | C-MMD is a test of **class-conditional shift** `P(E\|Y)`. By Bayes' rule, rejecting it is *necessary* for posterior drift under a stable prior, *equivalent* to it under a stable marginal, and it is *blind to pure label shift by design*. A prior-shift test (`prior_shift`) and Global MMD complete the decision logic. |
+| What C-MMD tests | C-MMD is a test of **class-conditional shift** `P(E\|Y)`. By Bayes' rule, at the population level a class-conditional change is *necessary* for posterior drift under a stable prior and *equivalent* to it under a stable marginal; finite-sample non-rejection does not establish either stability condition. C-MMD is *blind to pure label shift by design*. A prior-shift test (`prior_shift`) and Global MMD complete the decision logic. |
 | Drift scenarios | Scenarios built only from **real reviews** (`src/scenarios.py`): natural temporal drift (chronologically sorted streams), polarity attenuation, annotation-boundary drift, asymmetric temporal drift, pure label shift (negative control), label noise on a *fresh* sample. |
 | Protocol | `src/protocol.py`: C-MMD thresholds are bootstrapped conditional on observed class counts; within-class Monte Carlo permutation tests use a bandwidth selected from pooled observations; sustained alarms and BH adjustment are reported with their dependence assumptions. |
 | Baselines | 11 detectors in `src/statistics.py`: Global MMD, energy distance, linear & MLP C2ST, BBSD-KS (unsupervised); C-MMD, class-conditional energy, class-conditional C2ST, centroid shift, joint (E,Y) MMD, error-rate monitor (label-aware). |
