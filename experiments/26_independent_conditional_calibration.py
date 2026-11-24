@@ -3,7 +3,9 @@
 For IMDb/DistilBERT (N=500) and Amazon/DistilBERT (N=200), this experiment
 repeats the fit/calibration/test partition, calibrates one natural-prior
 threshold and thresholds conditional on the observed class counts, then
-evaluates each on separate null and 95%-positive test windows.
+evaluates each on separate null and 95%-positive test windows. Every calibration
+and test window is sampled without replacement, so all windows contain distinct
+observations and the two thresholds are compared on the same footing.
 """
 
 from __future__ import annotations

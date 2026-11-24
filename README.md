@@ -23,11 +23,11 @@ figures and LaTeX tables). Experiments 01–15 are kept for reference but are su
 |---|---|
 | What C-MMD tests | C-MMD is a test of **class-conditional shift** `P(E\|Y)`. By Bayes' rule, at the population level a class-conditional change is *necessary* for posterior drift under a stable prior and *equivalent* to it under a stable marginal; finite-sample non-rejection does not establish either stability condition. C-MMD is *blind to pure label shift by design*. A prior-shift test (`prior_shift`) and Global MMD complete the decision logic. |
 | Drift scenarios | Scenarios built only from **real reviews** (`src/scenarios.py`): natural temporal drift (chronologically sorted streams), polarity attenuation, annotation-boundary drift, asymmetric temporal drift, pure label shift (negative control), label noise on a *fresh* sample. |
-| Protocol | `src/protocol.py`: C-MMD thresholds are bootstrapped conditional on observed class counts; within-class Monte Carlo permutation tests use a bandwidth selected from pooled observations; sustained alarms and BH adjustment are reported with their dependence assumptions. |
+| Protocol | `src/protocol.py`: C-MMD thresholds are resampled conditional on observed class counts (within-class draws without replacement); within-class Monte Carlo permutation tests use a bandwidth selected from pooled observations; sustained alarms and BH adjustment are reported with their dependence assumptions. |
 | Baselines | 11 detectors in `src/statistics.py`: Global MMD, energy distance, linear & MLP C2ST, BBSD-KS (unsupervised); C-MMD, class-conditional energy, class-conditional C2ST, centroid shift, joint (E,Y) MMD, error-rate monitor (label-aware). |
 | Kernel bandwidth | The **mean squared pairwise distance** of a fixed reference sample with a 5-scale kernel mixture; ablation vs median / single-scale / adaptive / V-statistic in exp 21. |
 | Consistent kernel wrappers | Earlier scripts were inconsistent: exp 02 used `mmd_rbf` (sum of 5 kernels) while the others used `mmd_rbf_chunked` (mean of 5 kernels), so the IMDb/DistilBERT stream values of exp 02 were inflated 5×. Both wrappers now return the same quantity; exp 21 compares the encoders under the consistent estimator. |
-| Estimator | Kernel detectors use the **unbiased U-statistic** (null expectation 0 for any class count). Its finite-sample variance still depends on class counts, so the monitor selects a bootstrap threshold conditional on the observed counts. |
+| Estimator | Kernel detectors use the **unbiased U-statistic** (null expectation 0 for any class count). Its finite-sample variance still depends on class counts, so the monitor selects a resampled threshold conditional on the observed counts. |
 | Data | IMDb stream is now **sorted by date** (the stored file was in corpus order); stream period is 2013-01…2018-01; Amazon reference = first 3,000 reviews (2001–2017) so that calibration/test pools exist. |
 
 ### Running the revised pipeline
@@ -69,7 +69,7 @@ tau = mon.calibrate(cal_emb, cal_lab, window_size=200)  # threshold at the calib
 out = mon.score(window_emb, window_lab, n_perm=200)     # tau is selected for this window's observed class counts
 ```
 
-The monitor requires at least 10 labelled observations per class in each window. Its bootstrap thresholds are cached by class-count vector; `tau` returned by `calibrate` is only the threshold for the pool's natural class-count vector. The permutation p-value uses 200 random assignments by default and is not exhaustive enumeration.
+The monitor requires at least 10 labelled observations per class in each window. Its thresholds are resampled from the calibration pool for each observed class-count vector (each calibration window draws distinct observations within every class, so a class's pool must hold at least as many observations as the window's count for that class) and cached by class-count vector; `tau` returned by `calibrate` is only the threshold for the pool's natural class-count vector. The permutation p-value uses 200 random assignments by default and is not exhaustive enumeration.
 
 ---
 

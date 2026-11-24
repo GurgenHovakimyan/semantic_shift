@@ -25,6 +25,20 @@ class ConditionalCalibrationTests(unittest.TestCase):
         self.assertEqual(int((labels == 0).sum()), 12)
         self.assertEqual(int((labels == 1).sum()), 15)
 
+    def test_draw_without_replacement_uses_distinct_rows_and_checks_pool_size(self):
+        emb, _ = draw_class_count_window(
+            self.embeddings, self.labels, {0: 30, 1: 30}, np.random.RandomState(1)
+        )
+        self.assertEqual(torch.unique(emb, dim=0).shape[0], 60)
+        with self.assertRaisesRegex(ValueError, 'without replacement'):
+            draw_class_count_window(
+                self.embeddings, self.labels, {0: 31, 1: 10}, np.random.RandomState(1)
+            )
+        emb, _ = draw_class_count_window(
+            self.embeddings, self.labels, {0: 31, 1: 10}, np.random.RandomState(1), replace=True
+        )
+        self.assertEqual(emb.shape[0], 41)
+
     def test_threshold_is_cached_by_class_count_signature(self):
         statistic = lambda _ctx, _emb, labels: float((labels == 0).sum())
         calibrator = ClassCountConditionalCalibrator(

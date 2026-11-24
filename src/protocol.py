@@ -45,8 +45,14 @@ def draw_class_count_window(
     pool_lab: torch.Tensor,
     counts: dict[int, int],
     rng: np.random.RandomState,
+    replace: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Draw a null window with the specified count for every class."""
+    """Draw a null window with the specified count for every class.
+
+    By default each class is sampled without replacement, so the window holds distinct
+    observations like a deployment window; repeated rows would inflate the within-window
+    kernel term of the unbiased statistic.
+    """
     embeddings, labels = [], []
     for label, count in counts.items():
         count = int(count)
@@ -57,7 +63,12 @@ def draw_class_count_window(
         indices = torch.where(pool_lab == label)[0].cpu().numpy()
         if len(indices) == 0:
             raise ValueError(f'calibration pool has no observations for class {label}')
-        selected = rng.choice(indices, size=count, replace=True)
+        if not replace and count > len(indices):
+            raise ValueError(
+                f'class {label} has {len(indices)} pool observations but {count} were '
+                'requested without replacement'
+            )
+        selected = rng.choice(indices, size=count, replace=replace)
         selected_t = torch.as_tensor(selected, device=pool_emb.device)
         embeddings.append(pool_emb[selected_t])
         labels.append(torch.full((count,), label, dtype=pool_lab.dtype, device=pool_lab.device))
@@ -289,15 +300,16 @@ class CMMDMonitor:
 
 
 class ClassCountConditionalCalibrator:
-    """Cache bootstrap C-MMD thresholds for observed class-count signatures.
+    """Cache resampled C-MMD null thresholds for observed class-count signatures.
 
-    Calibration examples are sampled with replacement within each class. The
-    resulting quantiles condition on the reference sample, class-specific
-    calibration pools, and the exact class counts in the scored window.
+    Each calibration window draws the requested count from every class of the
+    calibration pool, without replacement within the window by default; windows are
+    drawn independently. The resulting quantiles condition on the reference sample,
+    class-specific calibration pools, and the exact class counts in the scored window.
     """
 
     def __init__(self, statistic, context, pool_emb, pool_lab, classes, alpha=0.05,
-                 n_null=200, seed=0, min_count=10):
+                 n_null=200, seed=0, min_count=10, replace=False):
         if n_null < 1:
             raise ValueError('n_null must be positive')
         self.statistic = statistic
@@ -309,6 +321,7 @@ class ClassCountConditionalCalibrator:
         self.n_null = n_null
         self.seed = seed
         self.min_count = min_count
+        self.replace = replace
         self._thresholds: dict[tuple[int, ...], float] = {}
 
     def threshold(self, counts: dict[int, int]) -> float:
@@ -327,7 +340,9 @@ class ClassCountConditionalCalibrator:
             values = [
                 self.statistic(
                     self.context,
-                    *draw_class_count_window(self.pool_emb, self.pool_lab, class_counts, rng),
+                    *draw_class_count_window(
+                        self.pool_emb, self.pool_lab, class_counts, rng, replace=self.replace
+                    ),
                 )
                 for _ in range(self.n_null)
             ]
