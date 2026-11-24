@@ -138,8 +138,8 @@ def run_config(ds, key, name, model, thr_rows, fpr_rows, perm_rows):
             p_g, p_c = [], []
             for _ in range(N_PERM_WINDOWS):
                 e, l = draw_null_window(test_emb, test_lab, n, rng)
-                p_g.append(permutation_test_mmd(ctx.ref_global, e, ctx.beta, n_perm=N_PERM, seed=int(rng.randint(1 << 30)))[1])
-                p_c.append(permutation_test_cmmd(ctx.ref_by_class, e, l, ctx.beta, n_perm=N_PERM, seed=int(rng.randint(1 << 30)))[1])
+                p_g.append(permutation_test_mmd(ctx.ref_global, e, n_perm=N_PERM, seed=int(rng.randint(1 << 30)))[1])
+                p_c.append(permutation_test_cmmd(ctx.ref_by_class, e, l, n_perm=N_PERM, seed=int(rng.randint(1 << 30)))[1])
             for det, pv in [('global_mmd', p_g), ('cmmd', p_c)]:
                 pv = np.array(pv)
                 perm_rows.append({'key': key, 'dataset': name, 'model': model, 'N': n, 'detector': det,

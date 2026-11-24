@@ -88,8 +88,8 @@ def main(selected=None):
                 sl = slice(w * n, (w + 1) * n)
                 e, l = ds.stream_emb[sl], ds.stream_lab[sl]
                 r = compute_all(ctx, e, l)
-                r['p_global'] = permutation_test_mmd(ctx.ref_global, e, ctx.beta, n_perm=N_PERM, seed=w)[1]
-                r['p_cmmd'] = permutation_test_cmmd(ctx.ref_by_class, e, l, ctx.beta, n_perm=N_PERM, seed=w)[1]
+                r['p_global'] = permutation_test_mmd(ctx.ref_global, e, n_perm=N_PERM, seed=w)[1]
+                r['p_cmmd'] = permutation_test_cmmd(ctx.ref_by_class, e, l, n_perm=N_PERM, seed=w)[1]
                 for c, v in cmmd_per_class(ctx, e, l).items():
                     r[f'cmmd_class{c}'] = v
                 dates = pd.to_datetime(ds.stream_dates[sl])

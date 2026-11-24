@@ -26,8 +26,8 @@ FIG_DIR = RESULTS_DIR / 'figures'
 FIG_DIR.mkdir(exist_ok=True)
 
 plt.rcParams.update({
-    'font.family': 'serif', 'font.size': 10, 'axes.titlesize': 11, 'axes.labelsize': 10,
-    'legend.fontsize': 8.5, 'xtick.labelsize': 9, 'ytick.labelsize': 9, 'figure.dpi': 200,
+    'font.family': 'serif', 'font.size': 10.5, 'axes.titlesize': 12, 'axes.labelsize': 11,
+    'legend.fontsize': 9.5, 'xtick.labelsize': 10, 'ytick.labelsize': 10, 'figure.dpi': 300,
     'axes.spines.top': False, 'axes.spines.right': False,
 })
 PALETTE = sns.color_palette('colorblind', 10)
@@ -106,7 +106,7 @@ def fig_power(key, n, name):
             dets = [d for d in MAIN_DETECTORS if d in g['detector'].values]
             vals = g.set_index('detector').loc[dets]
             ax.bar(range(len(dets)), vals['power_mean'], yerr=vals['power_std'], color=[COLORS[d] for d in dets], alpha=0.85, capsize=2)
-            ax.set_xticks(range(len(dets))); ax.set_xticklabels([PRETTY[d] for d in dets], rotation=60, ha='right', fontsize=7)
+            ax.set_xticks(range(len(dets))); ax.set_xticklabels([PRETTY[d] for d in dets], rotation=55, ha='right', fontsize=8.5)
             ax.set_ylabel('detection rate')
         else:
             for det in MAIN_DETECTORS:
@@ -115,13 +115,13 @@ def fig_power(key, n, name):
                     continue
                 ax.errorbar(gg['lam'], gg['power_mean'], yerr=gg['power_std'], color=COLORS[det], ls=STYLES[det],
                             marker='o', ms=3, lw=LW[det], capsize=2, label=PRETTY[det])
-            ax.set_xlabel('drift level $\\lambda$'); ax.set_ylabel('power at 5% FPR')
+            ax.set_xlabel('drift level $\\lambda$'); ax.set_ylabel('detection rate (nominal $\\alpha=0.05$)')
             ax.set_ylim(-0.03, 1.03); ax.axhline(0.05, color='grey', lw=0.7, ls=':')
         ax.set_title(SCENARIO_TITLE[sc])
     for ax in axes.flat[len(scenarios):]:
         ax.axis('off')
     handles, labels = axes.flat[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', ncol=5, bbox_to_anchor=(0.5, -0.04), frameon=False)
+    fig.legend(handles, labels, loc='lower center', ncol=5, bbox_to_anchor=(0.5, -0.06), frameon=False, fontsize=9.5)
     fig.suptitle(f'{KEY_TITLE.get(key, key)}, $N={n}$', y=1.01)
     fig.tight_layout()
     savefig(fig, name)
@@ -149,9 +149,9 @@ def fig_delay():
                 patch.set_facecolor(COLORS[det]); patch.set_alpha(0.7)
             for k, m in enumerate(miss):
                 if m > 0:
-                    ax.text(k + 1, horizon + 1.0, f'{int(round(100 * m))}%', ha='center', va='bottom', fontsize=6.5, color='firebrick')
+                    ax.text(k + 1, horizon + 1.0, f'{int(round(100 * m))}%', ha='center', va='bottom', fontsize=8, color='firebrick')
             ax.axhline(horizon, color='grey', lw=0.6, ls=':')
-            ax.set_xticks(range(1, len(dets) + 1)); ax.set_xticklabels([PRETTY[x] for x in dets], rotation=60, ha='right', fontsize=7)
+            ax.set_xticks(range(1, len(dets) + 1)); ax.set_xticklabels([PRETTY[x] for x in dets], rotation=55, ha='right', fontsize=8.5)
             ax.set_ylim(-0.5, horizon + 4.5)
             ax.set_title(f'{SCENARIO_TITLE[drift]}\n({onset} onset)', fontsize=9.5)
             if j == 0:
@@ -177,13 +177,13 @@ def fig_natural_streams():
         ax.axhline(t['cmmd'], color=COLORS['cmmd'], lw=0.9, ls=':', label='$\\tau_{0.05}$ (C-MMD)')
         ax.axhline(t['global_mmd'], color=COLORS['global_mmd'], lw=0.9, ls=':', label='$\\tau_{0.05}$ (Global)')
         flagged = s[s['bh_cmmd']]
-        ax.scatter(flagged['date_mid'], flagged['cmmd'], color=COLORS['cmmd'], s=10, zorder=5, label='BH-significant (C-MMD)')
-        ax.set_ylabel('unbiased MMD$^2$'); ax.set_title(title, fontsize=9.5); ax.legend(ncol=3, loc='upper left', fontsize=7)
+        ax.scatter(flagged['date_mid'], flagged['cmmd'], color=COLORS['cmmd'], s=10, zorder=5, label='BH-adjusted (descriptive)')
+        ax.set_ylabel('unbiased MMD$^2$'); ax.set_title(title, fontsize=10.5); ax.legend(ncol=3, loc='upper left', fontsize=8.5)
         ax2 = axes[row, 1]
         ax2.plot(s['date_mid'], s['f1'], color='black', lw=1.2, label='macro-F1 of reference classifier')
         ax2.plot(s['date_mid'], s['pos_frac'], color='grey', lw=1.0, ls='--', label='positive fraction in window')
-        ax2.set_ylabel('F1 / class proportion'); ax2.set_title('Downstream performance and class prior', fontsize=9.5)
-        ax2.legend(loc='lower left', fontsize=7)
+        ax2.set_ylabel('F1 / class proportion'); ax2.set_title('Downstream performance and class prior', fontsize=10.5)
+        ax2.legend(loc='lower left', fontsize=8.5)
         for a in (ax, ax2):
             a.tick_params(axis='x', rotation=30)
     fig.tight_layout()
@@ -210,7 +210,7 @@ def fig_speed():
     ax.set_xscale('log'); ax.set_yscale('log'); ax.set_xlabel('window size $N$'); ax.set_ylabel('wall-clock time per window (ms)')
     ax.set_xticks([100, 200, 500, 1000, 2000]); ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-    ax.legend(fontsize=7, ncol=2, loc='upper left'); ax.grid(True, which='both', alpha=0.25)
+    ax.legend(fontsize=8.5, ncol=2, loc='upper left'); ax.grid(True, which='both', alpha=0.25)
     ax.set_title('Cost per monitored window (reference sample $M=1000$, single CPU thread)')
     fig.tight_layout()
     savefig(fig, 'fig_speed.png')
@@ -254,7 +254,7 @@ def fig_downstream():
         g = pooled[pooled['scenario'] == sc]
         ax.scatter(g['cmmd'], g['f1'], s=7, alpha=0.55, color=pal[sc], label=SCENARIO_TITLE.get(sc, 'Null (reference era)'))
     ax.set_xlabel('C-MMD (unbiased MMD$^2$)'); ax.set_ylabel('macro-F1 of reference classifier')
-    ax.set_title('IMDb / DistilBERT, $N=500$: all benchmark windows'); ax.legend(fontsize=6.5, markerscale=2)
+    ax.set_title('IMDb / DistilBERT, $N=500$: all benchmark windows'); ax.legend(fontsize=8, markerscale=2)
     ax = axes[1]
     dets = [d for d in MAIN_DETECTORS if d != 'error_rate']
     for i, (setting, lbl, off) in enumerate([('natural_stream', 'natural stream', -0.2), ('benchmark_pooled', 'pooled benchmark', 0.2)]):
@@ -278,9 +278,9 @@ def fig_bandwidth():
         piv = piv.reindex(['label_noise', 'attenuation', 'asym_temporal', 'boundary', 'label_shift'])
         piv.plot.bar(ax=ax, width=0.8, color=sns.color_palette('colorblind', piv.shape[1]), alpha=0.9, legend=(n == 200))
         ax.set_xticklabels([SCENARIO_TITLE[s] for s in piv.index], rotation=30, ha='right', fontsize=8)
-        ax.set_ylabel('power at 5% FPR'); ax.set_title(f'IMDb / DistilBERT, $N={n}$'); ax.set_xlabel('')
+        ax.set_ylabel('detection rate (nominal $\\alpha=0.05$)'); ax.set_title(f'IMDb / DistilBERT, $N={n}$'); ax.set_xlabel('')
         ax.axhline(0.05, color='grey', lw=0.7, ls=':')
-    axes[0].legend(fontsize=6.5, title='C-MMD variant', title_fontsize=7)
+    axes[0].legend(fontsize=8, title='C-MMD variant', title_fontsize=8.5)
     fig.tight_layout()
     savefig(fig, 'fig_bandwidth_ablation.png')
 
@@ -300,11 +300,11 @@ def fig_power_vs_N():
             ax.errorbar(gg['N'], gg['power_mean'], yerr=gg['power_std'], color=COLORS[det], ls=STYLES[det], marker='o', ms=3, lw=LW[det], capsize=2, label=PRETTY[det])
         ax.set_xscale('log'); ax.set_xticks([200, 500, 1000]); ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
         ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-        ax.set_title(f'{SCENARIO_TITLE[sc]} ($\\lambda={lam}$)', fontsize=9.5); ax.set_xlabel('window size $N$')
+        ax.set_title(f'{SCENARIO_TITLE[sc]} ($\\lambda={lam}$)', fontsize=10.5); ax.set_xlabel('window size $N$')
         ax.set_ylim(-0.03, 1.03)
-    axes[0].set_ylabel('power at 5% FPR')
+    axes[0].set_ylabel('detection rate (nominal $\\alpha=0.05$)')
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', ncol=5, bbox_to_anchor=(0.5, -0.16), frameon=False)
+    fig.legend(handles, labels, loc='lower center', ncol=5, bbox_to_anchor=(0.5, -0.18), frameon=False, fontsize=9.5)
     fig.tight_layout()
     savefig(fig, 'fig_power_vs_N.png')
 

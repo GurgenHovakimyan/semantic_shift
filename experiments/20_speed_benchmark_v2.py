@@ -89,11 +89,11 @@ def main():
                 med, q1, q3 = time_fn(lambda: fn(ctx_gpu, e_g, l_g), sync=True)
                 rows.append({'detector': det, 'N': n, 'device': 'cuda', 'ms_median': med, 'ms_q1': q1, 'ms_q3': q3})
         # permutation test (C-MMD, 200 permutations)
-        med, q1, q3 = time_fn(lambda: permutation_test_cmmd(ctx_cpu.ref_by_class, e_cpu, l_cpu, ctx_cpu.beta, n_perm=200), repeats=5)
+        med, q1, q3 = time_fn(lambda: permutation_test_cmmd(ctx_cpu.ref_by_class, e_cpu, l_cpu, n_perm=200), repeats=5)
         rows.append({'detector': 'cmmd_permutation200', 'N': n, 'device': 'cpu', 'ms_median': med, 'ms_q1': q1, 'ms_q3': q3})
         if ctx_gpu is not None:
             e_g, l_g = e_cpu.cuda(), l_cpu.cuda()
-            med, q1, q3 = time_fn(lambda: permutation_test_cmmd(ctx_gpu.ref_by_class, e_g, l_g, ctx_gpu.beta, n_perm=200), repeats=5, sync=True)
+            med, q1, q3 = time_fn(lambda: permutation_test_cmmd(ctx_gpu.ref_by_class, e_g, l_g, n_perm=200), repeats=5, sync=True)
             rows.append({'detector': 'cmmd_permutation200', 'N': n, 'device': 'cuda', 'ms_median': med, 'ms_q1': q1, 'ms_q3': q3})
         df = pd.DataFrame(rows)
         sub = df[(df['N'] == n) & (df['device'] == 'cpu')].set_index('detector')['ms_median']
